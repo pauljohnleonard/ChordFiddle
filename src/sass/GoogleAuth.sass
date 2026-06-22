@@ -1,0 +1,27 @@
+@use "variables"
+
+.GoogleAuth
+  align-items: center
+  display: flex
+  flex-wrap: wrap
+  gap: variables.$spacing-s
+
+  &__user
+    font-size: 0.85rem
+    opacity: 0.9
+
+  button
+    background: variables.$theme-primary
+    border: none
+    border-radius: 2px
+    color: variables.$theme-background
+    cursor: pointer
+    font-size: 0.85rem
+    padding: variables.$spacing-s variables.$spacing-m
+
+    &:disabled
+      cursor: default
+      opacity: 0.5
+
+    &[hidden]
+      display: none

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Browse and transpose ChordPro songs from Google Drive.">
+  <title>{{config.title}}</title>
+</head>
+<body>
+<noscript>
+  You need to enable JavaScript to run this app.
+</noscript>
+<form id="root">
+  <div class="App SongBrowserApp">
+    <header class="Header">
+      <div class="Header__wrapper">
+        <h1 class="Header__site-name">
+          <a href="{{config.publicUrl}}">{{config.title}}</a>
+        </h1>
+        <ul class="Header__navigation">
+          <li>
+            <a href="index.html">ChordFiddle demo</a>
+          </li>
+          <li class="GoogleAuth" id="googleAuth">
+            <span class="GoogleAuth__user" id="googleAuth__userLabel"></span>
+            <button type="button" id="googleAuth__signIn">Sign in with Google</button>
+            <button type="button" id="googleAuth__signOut" hidden>Sign out</button>
+          </li>
+          <li>Version {{package.version}}</li>
+        </ul>
+      </div>
+    </header>
+    <main class="App__container">
+      <div class="App__columns">
+        <section class="SongBrowser" id="songBrowser">
+          <div class="SongBrowser__header">
+            <h2 class="SongBrowser__title">Library</h2>
+            <p class="SongBrowser__breadcrumb" id="songBrowser__breadcrumb">Songs</p>
+            <div class="SongBrowser__toolbar">
+              <button class="SongBrowser__back-button" id="songBrowser__backButton" type="button" disabled>Up</button>
+            </div>
+          </div>
+          <p class="SongBrowser__status" id="songBrowser__status"></p>
+          <div class="SongBrowser__list" id="songBrowser__list"></div>
+        </section>
+        <section class="App__column">
+          <div class="App__row App__row--grow App__row--relative">
+            <ul class="Toolbar" id="toolbar">
+              {{#each config.toolbar}}
+                <li>
+                  <button id="toolbar__{{@key}}" type="button">{{this}}</button>
+                </li>
+              {{/each}}
+            </ul>
+            <div class="EditorContainer">
+              <div class="ChordSheetEditor EditorContainer__editor" id="chordSheetEditor" data-mode="text">
+                <script type="text/template"></script>
+              </div>
+            </div>
+            <div class="EditorContainer__errorMessage" id="chordSheetEditor__errorMessage"></div>
+          </div>
+        </section>
+        <section class="App__column" id="chordSheetViewer">
+          <ul class="RadioGroup">
+            {{#each config.displayModes}}
+              <li class="RadioGroup__option">
+                <input
+                  type="radio"
+                  class="RadioGroup__radio"
+                  id="chordSheetViewer__displayMode{{upperCaseFirst @key}}"
+                  name="display_mode"
+                  value="{{@key}}"
+                  {{#if (eq ../config.defaultDisplayMode @key)}}
+                    checked="checked"
+                  {{/if}}
+                >
+                <label
+                  class="RadioGroup__label"
+                  for="chordSheetViewer__displayMode{{upperCaseFirst @key}}"
+                >{{this}}</label>
+              </li>
+            {{/each}}
+          </ul>
+          <div class="ChordSheetViewer" id="chordSheetViewer__outlet"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="Toast" id="toast" role="status" aria-live="polite">
+    <p class="Toast__message" id="toast__message"></p>
+  </div>
+</form>
+<script src="{{bundlePath}}"></script>
+</body>
+</html>

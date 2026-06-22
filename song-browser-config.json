@@ -1,0 +1,53 @@
+{
+  "title": "ChordFiddle Song Browser",
+  "publicUrl": "/song-browser.html",
+  "googleDrive": {
+    "folderId": "1s7QKTXKAUdl2W1Zn6oiQOG1Q6EA6lmZX",
+    "allowedExtensions": [".cho", ".chopro", ".pro", ".crd", ".chordpro", ".txt", ".md"]
+  },
+  "toolbar": {
+    "transposeDown": "Transpose down",
+    "transposeUp": "Transpose up",
+    "switchToSharp": "Use ♯",
+    "switchToFlat": "Use ♭",
+    "saveSong": "Save to Drive"
+  },
+  "displayModes": {
+    "html": "Markup",
+    "text": "Plain"
+  },
+  "defaultDisplayMode": "html",
+  "formatterConfig": {
+    "attributes": {
+      "decapo": {
+        "type": "boolean",
+        "value": false
+      },
+      "expandChorusDirective": {
+        "type": "boolean",
+        "value": false
+      },
+      "key": {
+        "type": "string",
+        "value": null
+      },
+      "metadata": {
+        "type": "object",
+        "attributes": {
+          "separator": {
+            "type": "string",
+            "value": ","
+          }
+        }
+      },
+      "normalizeChords": {
+        "type": "boolean",
+        "value": true
+      },
+      "useUnicodeModifiers": {
+        "type": "boolean",
+        "value": false
+      }
+    }
+  }
+}

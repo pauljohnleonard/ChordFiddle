@@ -1,0 +1,24 @@
+@use '../sass/variables'
+@use '../sass/base'
+@use '../sass/button'
+
+@use '../sass/App'
+@use '../sass/ChordSheetViewer'
+@use '../sass/EditorContainer'
+@use '../sass/Header'
+@use '../sass/LineNumbers'
+@use '../sass/RadioGroup'
+@use '../sass/SongBrowser'
+@use '../sass/Toolbar'
+
+@use '../sass/Toast'
+@use '../sass/GoogleAuth'
+
+.SongBrowserApp
+  &__placeholder
+    color: variables.$theme-grey
+    font-style: italic
+    margin: variables.$spacing-l
+
+  .App__column
+    flex: 1 1 auto

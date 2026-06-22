@@ -1,0 +1,93 @@
+@use "variables"
+
+.SongBrowser
+  $panel-width: 16rem
+
+  background: variables.$theme-white
+  color: variables.$theme-background
+  display: flex
+  flex: 0 0 $panel-width
+  flex-direction: column
+  max-height: 100%
+  overflow: hidden
+  width: $panel-width
+
+  &__header
+    background: variables.$theme-secondary
+    color: variables.$theme-white
+    flex: 0 0 auto
+    padding: variables.$spacing-m
+
+  &__title
+    font-size: 1rem
+    font-weight: 600
+    margin: 0 0 variables.$spacing-s
+
+  &__breadcrumb
+    font-size: 0.85rem
+    margin: 0
+    opacity: 0.9
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  &__toolbar
+    display: flex
+    gap: variables.$spacing-s
+    margin-top: variables.$spacing-s
+
+  &__back-button
+    background: variables.$theme-white
+    border: none
+    border-radius: 2px
+    color: variables.$theme-secondary
+    cursor: pointer
+    font-size: 0.85rem
+    padding: variables.$spacing-s variables.$spacing-m
+
+    &:disabled
+      cursor: default
+      opacity: 0.5
+
+  &__status
+    color: #666
+    flex: 0 0 auto
+    font-size: 0.85rem
+    min-height: 1.25rem
+    padding: variables.$spacing-s variables.$spacing-m
+
+  &__list
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    gap: 1px
+    list-style: none
+    margin: 0
+    overflow: auto
+    padding: 0
+
+  &__item
+    background: transparent
+    border: none
+    border-bottom: 1px solid #eee
+    color: inherit
+    cursor: pointer
+    font-size: 0.9rem
+    padding: variables.$spacing-m
+    text-align: left
+    width: 100%
+
+    &:hover
+      background: #f5f5f5
+
+    &--folder:before
+      content: "[dir] "
+      font-size: 0.75rem
+      opacity: 0.7
+
+    &--file:before
+      content: ""
+
+    &--selected
+      background: #fff3d6
+      font-weight: 600

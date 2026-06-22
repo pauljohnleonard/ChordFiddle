@@ -5,3 +5,6 @@ coverage
 .tool-versions
 .yarn
 dist/
+.env
+service-account.json
+client_secret*

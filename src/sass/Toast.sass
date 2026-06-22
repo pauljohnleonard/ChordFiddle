@@ -1,0 +1,32 @@
+@use "variables"
+
+.Toast
+  background: variables.$theme-secondary
+  border-radius: 4px
+  bottom: variables.$spacing-l
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35)
+  color: variables.$theme-white
+  left: 50%
+  max-width: 28rem
+  opacity: 0
+  padding: variables.$spacing-m variables.$spacing-l
+  pointer-events: none
+  position: fixed
+  transform: translate(-50%, 1rem)
+  transition: opacity 0.2s ease, transform 0.2s ease
+  z-index: 1000
+
+  &__message
+    margin: 0
+    text-align: center
+
+  &--visible
+    opacity: 1
+    pointer-events: auto
+    transform: translate(-50%, 0)
+
+  &--success
+    background: #2d6a4f
+
+  &--error
+    background: #9b2226
