@@ -16,8 +16,9 @@ class ChordSheetEditor extends Component {
     });
 
     this.editor.dom.classList.add('ChordSheetEditor__editor');
-    this.container.addEventListener('change', ({ detail: { doc } }) => {
-      this.onChordSheetChange(doc.toString());
+    this.editor.dom.addEventListener('change', ({ detail }) => {
+      const doc = detail?.doc;
+      this.onChordSheetChange(typeof doc === 'string' ? doc : doc?.toString() || this.getValue());
     });
   }
 
@@ -45,6 +46,7 @@ class ChordSheetEditor extends Component {
 
   setValue(value) {
     this.editor.dispatch({ changes: { from: 0, to: this.editor.state.doc.length, insert: value } });
+    this.onChordSheetChange(value);
   }
 
   setError(error) {

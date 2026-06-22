@@ -35,7 +35,7 @@ Copy `.env.example` to `.env` and fill in:
 
 ```bash
 yarn install
-yarn dev:song-browser
+yarn dev
 ```
 
 This starts the API on port 3001 and the UI on port 9000.
@@ -44,7 +44,7 @@ Or run separately:
 
 ```bash
 yarn start:api
-yarn start:song-browser
+yarn start
 ```
 
 ## Who can save?

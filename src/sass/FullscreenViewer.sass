@@ -1,0 +1,109 @@
+@use "variables"
+
+.FullscreenViewer
+  background: variables.$theme-foreground
+  color: variables.$theme-background
+  display: flex
+  flex-direction: column
+  inset: 0
+  position: fixed
+  z-index: 2000
+
+  &:fullscreen,
+  &:-webkit-full-screen
+    height: 100%
+    max-height: none
+    position: static
+    width: 100%
+
+  &[hidden]
+    display: none !important
+
+  &__close
+    background: rgba(variables.$theme-background, 0.75)
+    border: none
+    border-radius: 50%
+    color: variables.$theme-foreground
+    cursor: pointer
+    font-size: 1.5rem
+    height: 2.25rem
+    line-height: 1
+    opacity: 0.45
+    padding: 0
+    position: absolute
+    right: variables.$spacing-m
+    top: variables.$spacing-m
+    width: 2.25rem
+    z-index: 1
+
+    &:hover,
+    &:focus
+      opacity: 1
+
+  &__outlet
+    flex: 1 1 auto
+    height: 100%
+    margin: 0 auto
+    max-width: 48rem
+    overflow: auto
+    padding: variables.$spacing-l
+    width: 100%
+
+    .FullscreenViewer:fullscreen &,
+    .FullscreenViewer:-webkit-full-screen &
+      max-width: 56rem
+      padding: variables.$spacing-m variables.$spacing-l
+
+    &[data-mode="text"]
+      font-family: variables.$font-monospace
+      font-size: 14px
+      white-space: pre
+
+    &[data-mode="html"]
+      h2
+        font-size: 1.25em
+
+      .chord
+        font-weight: 600
+
+        &:not(:last-child)
+          padding-right: variables.$spacing-m
+
+      .empty-line
+        height: 1em
+
+      .paragraph
+        margin-bottom: 1em
+
+      .row
+        display: flex
+        line-height: 150%
+
+body.FullscreenViewer--bodyLock
+  overflow: hidden
+
+.ChordSheetViewer__toolbar
+  align-items: center
+  color: variables.$theme-foreground
+  display: flex
+  flex: 0 0 auto
+  flex-wrap: wrap
+  gap: variables.$spacing-m
+  justify-content: space-between
+  padding: variables.$spacing-s 0
+
+  .RadioGroup
+    margin: 0
+
+  &__fullscreen
+    background: variables.$theme-secondary
+    border: none
+    border-radius: 2px
+    color: variables.$theme-white
+    cursor: pointer
+    font-size: 0.9rem
+    padding: variables.$spacing-s variables.$spacing-m
+
+    &:disabled
+      cursor: not-allowed
+      opacity: 0.5

@@ -1,5 +1,6 @@
 const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
+const TOKEN_STORAGE_KEY = 'songBrowserGoogleAuth';
 const SCOPES = [
   'openid',
   'email',
@@ -9,6 +10,7 @@ const SCOPES = [
 let accessToken = null;
 let tokenClient = null;
 let currentUser = null;
+let pendingTokenRequest = null;
 const listeners = new Set();
 
 function getClientId() {
@@ -20,6 +22,28 @@ function notifyListeners() {
     isSignedIn: isSignedIn(),
     user: currentUser,
   }));
+}
+
+function readStoredSession() {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistSession(token, expiresIn) {
+  const expiresAt = Date.now() + (expiresIn || 3600) * 1000;
+  sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify({ token, expiresAt }));
+}
+
+function clearStoredSession() {
+  sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+function isStoredSessionValid(stored) {
+  return stored?.token && stored.expiresAt > Date.now() + 60_000;
 }
 
 function loadGoogleIdentityServices() {
@@ -57,21 +81,65 @@ async function fetchUserInfo() {
   return currentUser;
 }
 
+async function setSessionFromResponse(response) {
+  accessToken = response.access_token;
+  persistSession(response.access_token, response.expires_in);
+  await fetchUserInfo();
+}
+
 function initTokenClient() {
   tokenClient = window.google.accounts.oauth2.initTokenClient({
     client_id: getClientId(),
     scope: SCOPES.join(' '),
     callback: async (response) => {
       if (response.error) {
-        console.error(response.error);
+        if (pendingTokenRequest) {
+          pendingTokenRequest.reject(new Error(response.error));
+          pendingTokenRequest = null;
+        }
         return;
       }
 
-      accessToken = response.access_token;
-      await fetchUserInfo();
+      await setSessionFromResponse(response);
+
+      if (pendingTokenRequest) {
+        pendingTokenRequest.resolve();
+        pendingTokenRequest = null;
+      }
+
       notifyListeners();
     },
   });
+}
+
+function requestAccessToken({ prompt = '' } = {}) {
+  if (!tokenClient) {
+    return Promise.reject(new Error('Google sign-in is not configured.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    pendingTokenRequest = { resolve, reject };
+    tokenClient.requestAccessToken({ prompt });
+  });
+}
+
+async function restoreSession() {
+  const stored = readStoredSession();
+
+  if (!isStoredSessionValid(stored)) {
+    return;
+  }
+
+  accessToken = stored.token;
+  const user = await fetchUserInfo();
+  if (user) {
+    notifyListeners();
+    return;
+  }
+
+  clearStoredSession();
+  accessToken = null;
+  currentUser = null;
 }
 
 export function isOAuthConfigured() {
@@ -92,31 +160,36 @@ export function onAuthChange(listener) {
   return () => listeners.delete(listener);
 }
 
+let initPromise = null;
+
 export async function initGoogleAuth() {
   if (!isOAuthConfigured()) {
     return;
   }
 
-  await loadGoogleIdentityServices();
-  initTokenClient();
+  if (!initPromise) {
+    initPromise = (async () => {
+      await loadGoogleIdentityServices();
+      initTokenClient();
+      await restoreSession();
+    })();
+  }
+
+  return initPromise;
 }
 
 export function signIn() {
-  if (!tokenClient) {
-    throw new Error('Google sign-in is not configured. Add GOOGLE_OAUTH_CLIENT_ID to .env.');
-  }
-
-  tokenClient.requestAccessToken({ prompt: '' });
+  return requestAccessToken({ prompt: 'select_account' });
 }
 
 export function signOut() {
-  if (!accessToken) {
-    return;
-  }
+  const token = accessToken;
+  accessToken = null;
+  currentUser = null;
+  clearStoredSession();
+  notifyListeners();
 
-  window.google.accounts.oauth2.revoke(accessToken, () => {
-    accessToken = null;
-    currentUser = null;
-    notifyListeners();
-  });
+  if (token && window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(token, () => {});
+  }
 }

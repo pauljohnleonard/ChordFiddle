@@ -9,9 +9,16 @@ const formatters = {
 class ChordSheetViewer extends Component {
   onDisplayModeChanged = () => {};
 
+  onFullscreenClick = () => {};
+
   setup() {
     this.onChange('displayModeHtml', () => this.displayModeChanged());
     this.onChange('displayModeText', () => this.displayModeChanged());
+    this.onClick('fullscreen', () => {
+      if (!this.element('fullscreen')?.disabled) {
+        this.onFullscreenClick();
+      }
+    });
   }
 
   displayModeChanged() {

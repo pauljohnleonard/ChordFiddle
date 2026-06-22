@@ -33,7 +33,16 @@ function getDrive() {
 }
 
 function getRootFolderId() {
-  return process.env.DRIVE_FOLDER_ID || '';
+  if (process.env.DRIVE_FOLDER_ID) {
+    return process.env.DRIVE_FOLDER_ID;
+  }
+
+  try {
+    const config = require('../song-browser-config.json');
+    return config.googleDrive.folderId || '';
+  } catch {
+    return '';
+  }
 }
 
 function getAllowedExtensions() {

@@ -1,6 +1,6 @@
 {
   "title": "ChordFiddle Song Browser",
-  "publicUrl": "/song-browser.html",
+  "publicUrl": "/",
   "googleDrive": {
     "folderId": "1s7QKTXKAUdl2W1Zn6oiQOG1Q6EA6lmZX",
     "allowedExtensions": [".cho", ".chopro", ".pro", ".crd", ".chordpro", ".txt", ".md"]

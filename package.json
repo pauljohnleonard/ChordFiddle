@@ -1,8 +1,8 @@
 {
   "name": "chordfiddle",
   "version": "4.1.0",
-  "title": "ChordSheetJS live demo",
-  "description": "ChordPro editor. Transpose your chord sheet. Convert ChordPro to chord sheet.",
+  "title": "ChordFiddle Song Browser",
+  "description": "Browse and edit ChordPro songs from Google Drive.",
   "private": true,
   "scripts": {
     "test": "yarn lint",
@@ -12,8 +12,7 @@
     "prepublishOnly": "yarn install && yarn test && yarn build",
     "start": "webpack serve --open",
     "start:api": "node server/index.js",
-    "start:song-browser": "webpack serve --open /song-browser.html",
-    "dev:song-browser": "concurrently -k \"yarn start:api\" \"yarn start:song-browser\""
+    "dev": "concurrently -k \"yarn start:api\" \"webpack serve --open\""
   },
   "repository": {
     "type": "git",
@@ -45,7 +44,6 @@
     "express": "^4.21.2",
     "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0",
-    "luna-object-viewer": "^0.3.2",
     "lz-string": "^1.5.0",
     "query-string": "^9.4.0"
   },

@@ -12,7 +12,8 @@ import Toast from '../js/toast';
 import debounce from '../js/debounce';
 import { getSongBrowserQueryParams, setSongBrowserQueryParams } from '../js/song_browser_hash';
 import { fetchMe, saveSong } from '../js/song_api_client';
-import { isSignedIn } from '../js/google_auth';
+import { initGoogleAuth, isSignedIn } from '../js/google_auth';
+import FullscreenViewer from '../js/fullscreen_viewer';
 import songBrowserConfig from '../../song-browser-config.json';
 
 const SAVE_LABEL = songBrowserConfig.toolbar.saveSong;
@@ -52,9 +53,10 @@ class SongBrowserApp {
     this.songBrowser = new SongBrowser('songBrowser');
     this.googleAuth = new GoogleAuthBar('googleAuth');
     this.toast = new Toast('toast');
+    this.fullscreenViewer = new FullscreenViewer('fullscreenViewer');
   }
 
-  start() {
+  async start() {
     this.songBrowser.configure({
       rootFolderId: 'root',
       allowedExtensions: songBrowserConfig.googleDrive.allowedExtensions,
@@ -63,6 +65,10 @@ class SongBrowserApp {
     this.syncWithQueryParams();
     this.render();
     this.addChangeListeners();
+    await initGoogleAuth();
+    if (isSignedIn()) {
+      await this.refreshEditPermission();
+    }
     this.songBrowser.loadRoot();
     this.updateSaveState();
   }
@@ -96,6 +102,8 @@ class SongBrowserApp {
       this.displayMode = displayMode;
       this.render();
     };
+
+    this.chordSheetViewer.onFullscreenClick = () => this.openFullscreen();
 
     this.toolbar.onTransformClick = (transform) => {
       this.chordSheetEditor.transformChordSheet(transform);
@@ -145,7 +153,14 @@ class SongBrowserApp {
   }
 
   isDirty() {
-    return this.driveFile && this.chordSheet !== this.savedChordSheet;
+    if (!this.driveFile) {
+      return false;
+    }
+    return this.chordSheetEditor.getValue() !== this.savedChordSheet;
+  }
+
+  syncChordSheetFromEditor() {
+    this.chordSheet = this.chordSheetEditor.getValue();
   }
 
   getSaveState() {
@@ -195,8 +210,10 @@ class SongBrowserApp {
     this.updateSaveState();
 
     try {
-      await saveSong(this.driveFile.id, this.chordSheet);
-      this.savedChordSheet = this.chordSheet;
+      const content = this.chordSheetEditor.getValue();
+      await saveSong(this.driveFile.id, content);
+      this.chordSheet = content;
+      this.savedChordSheet = content;
       this.toast.show(`Saved to Google Drive: ${this.driveFile.name}`, 'success');
     } catch (error) {
       this.toast.show(error.message || 'Failed to save to Google Drive.', 'error');
@@ -207,16 +224,55 @@ class SongBrowserApp {
     }
   }
 
+  openFullscreen() {
+    if (!this.chordSheet) {
+      return;
+    }
+
+    const outlet = this.chordSheetViewer.element('outlet');
+    const mode = this.chordSheetViewer.getSelectedMode();
+    const content = mode === 'text' ? outlet.innerText : outlet.innerHTML;
+
+    this.fullscreenViewer.open({
+      title: this.driveFile?.name || songBrowserConfig.title,
+      content,
+      mode,
+    });
+  }
+
+  syncFullscreenPreview() {
+    if (!this.fullscreenViewer.isOpen) {
+      return;
+    }
+
+    const outlet = this.chordSheetViewer.element('outlet');
+    const mode = this.chordSheetViewer.getSelectedMode();
+    const content = mode === 'text' ? outlet.innerText : outlet.innerHTML;
+    this.fullscreenViewer.update({ content, mode });
+  }
+
+  updateFullscreenButton() {
+    const button = this.chordSheetViewer.element('fullscreen');
+    if (button) {
+      button.disabled = !this.chordSheet;
+    }
+  }
+
   render() {
     this.renderChordSheet();
     this.updateQueryParams();
   }
 
-  debouncedRender = debounce(() => this.render(), 100);
+  debouncedRender = debounce(() => {
+    this.syncChordSheetFromEditor();
+    this.render();
+    this.updateSaveState();
+  }, 100);
 
   renderChordSheet() {
     if (!this.chordSheet) {
       this.chordSheetViewer.element('outlet').innerHTML = '<p class="SongBrowserApp__placeholder">Select a song from the library.</p>';
+      this.updateFullscreenButton();
       return;
     }
 
@@ -225,10 +281,13 @@ class SongBrowserApp {
       this.song = parser.parse(this.chordSheet);
       this.chordSheetViewer.render(this.song, this.config);
       this.chordSheetEditor.resetError();
+      this.syncFullscreenPreview();
     } catch ({ message, location }) {
       console.error(message);
       this.chordSheetEditor.showError(message, location);
     }
+
+    this.updateFullscreenButton();
   }
 
   updateQueryParams() {
