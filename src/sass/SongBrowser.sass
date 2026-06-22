@@ -102,7 +102,29 @@
     flex: 0 0 auto
     font-size: 0.85rem
     min-height: 1.25rem
+    padding: 0 variables.$spacing-m variables.$spacing-s
+
+  &__index-status
+    background: #f8f8f8
+    border-bottom: 1px solid #eee
+    color: #555
+    flex: 0 0 auto
+    font-size: 0.75rem
+    line-height: 1.35
+    min-height: 1.1rem
     padding: variables.$spacing-s variables.$spacing-m
+
+    &--syncing
+      background: #fff8e6
+      color: #7a5d00
+
+    &--ready
+      background: #f3faf3
+      color: #2f5f2f
+
+    &--error
+      background: #fff0f0
+      color: #8a1f1f
 
   &__list
     display: flex

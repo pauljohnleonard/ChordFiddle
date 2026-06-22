@@ -6,7 +6,39 @@ import {
   loadSong,
   fetchTags,
   searchSongs,
+  getIndexStatus,
 } from './song_api_client';
+
+const INDEX_POLL_MS = 3000;
+const INDEX_POLL_IDLE_MS = 30000;
+
+function formatRelativeTime(isoDate) {
+  if (!isoDate) {
+    return null;
+  }
+
+  const then = new Date(isoDate).getTime();
+  const seconds = Math.round((Date.now() - then) / 1000);
+
+  if (seconds < 10) {
+    return 'just now';
+  }
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  return new Date(isoDate).toLocaleString();
+}
 
 class SongBrowser extends Component {
   onSongSelected = () => {};
@@ -21,10 +53,14 @@ class SongBrowser extends Component {
   searchScope = 'folder';
   availableTags = [];
   filterActive = false;
+  indexPollTimer = null;
+  lastSyncInProgress = false;
+  indexPollIntervalMs = INDEX_POLL_MS;
 
   setup() {
     this.listElement = this.element('list');
     this.statusElement = this.element('status');
+    this.indexStatusElement = this.element('indexStatus');
     this.breadcrumbElement = this.element('breadcrumb');
     this.searchInput = this.element('search');
     this.tagsElement = this.element('tags');
@@ -69,8 +105,88 @@ class SongBrowser extends Component {
 
     this.currentFolderId = this.rootFolderId;
     this.folderStack = [];
+    this.startIndexPolling();
     await this.loadTags();
+    await this.pollIndexStatus();
     await this.loadCurrentFolder();
+  }
+
+  startIndexPolling() {
+    this.stopIndexPolling();
+    this.indexPollTimer = setInterval(() => {
+      this.pollIndexStatus();
+    }, this.indexPollIntervalMs);
+  }
+
+  stopIndexPolling() {
+    if (this.indexPollTimer) {
+      clearInterval(this.indexPollTimer);
+      this.indexPollTimer = null;
+    }
+  }
+
+  setIndexPollInterval(ms) {
+    this.indexPollIntervalMs = ms;
+    if (this.indexPollTimer) {
+      this.startIndexPolling();
+    }
+  }
+
+  async pollIndexStatus() {
+    try {
+      const status = await getIndexStatus();
+      const wasSyncing = this.lastSyncInProgress;
+      this.lastSyncInProgress = status.syncInProgress;
+      this.renderIndexStatus(status);
+
+      const nextInterval = status.syncInProgress ? INDEX_POLL_MS : INDEX_POLL_IDLE_MS;
+      if (nextInterval !== this.indexPollIntervalMs) {
+        this.setIndexPollInterval(nextInterval);
+      }
+
+      if (wasSyncing && !status.syncInProgress) {
+        await this.loadTags();
+      }
+    } catch {
+      this.indexStatusElement.textContent = 'Index status unavailable';
+      this.indexStatusElement.classList.add('SongBrowser__index-status--error');
+    }
+  }
+
+  renderIndexStatus(status) {
+    const {
+      songCount,
+      lastSyncAt,
+      syncInProgress,
+      syncPhase,
+      syncCurrentPath,
+      lastSyncError,
+    } = status;
+
+    this.indexStatusElement.classList.remove(
+      'SongBrowser__index-status--syncing',
+      'SongBrowser__index-status--error',
+      'SongBrowser__index-status--ready',
+    );
+
+    if (lastSyncError && !syncInProgress) {
+      this.indexStatusElement.textContent = `Index error: ${lastSyncError}`;
+      this.indexStatusElement.classList.add('SongBrowser__index-status--error');
+      return;
+    }
+
+    if (syncInProgress) {
+      const phaseLabel = syncPhase === 'changes' ? 'Syncing' : 'Indexing';
+      const location = syncCurrentPath ? ` · ${syncCurrentPath}` : '';
+      this.indexStatusElement.textContent = `${phaseLabel}… ${songCount} song${songCount === 1 ? '' : 's'}${location}`;
+      this.indexStatusElement.classList.add('SongBrowser__index-status--syncing');
+      return;
+    }
+
+    const updated = formatRelativeTime(lastSyncAt);
+    const updatedLabel = updated ? ` · updated ${updated}` : '';
+    this.indexStatusElement.textContent = `${songCount} song${songCount === 1 ? '' : 's'} indexed${updatedLabel}`;
+    this.indexStatusElement.classList.add('SongBrowser__index-status--ready');
   }
 
   async loadTags() {

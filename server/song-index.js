@@ -310,7 +310,6 @@ function setLastSyncError(message) {
 function clearSyncProgress() {
   setMeta('sync_phase', '');
   setMeta('sync_current_path', '');
-  setMeta('sync_started_at', '');
 }
 
 module.exports = {

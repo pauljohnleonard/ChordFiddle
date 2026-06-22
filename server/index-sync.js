@@ -68,6 +68,7 @@ async function crawlFolder(folderId, {
   ancestorIds = [],
 } = {}) {
   const folderPath = pathSegments.join(' / ');
+  songIndex.setSyncCurrentPath(folderPath || 'Library root');
   const folderIdPath = buildFolderIdPath(ancestorIds);
   const { folders, files } = await listAllFolderContents(folderId);
 
@@ -175,6 +176,9 @@ async function syncChanges() {
     return;
   }
 
+  songIndex.setSyncPhase('changes');
+  songIndex.setSyncCurrentPath('Checking Drive changes');
+
   let pageToken = songIndex.getMeta('changes_page_token');
   if (!pageToken) {
     pageToken = await getStartChangesToken();
@@ -196,20 +200,23 @@ async function syncChanges() {
   songIndex.setMeta('last_sync_at', new Date().toISOString());
 }
 
-async function runSync(task) {
+async function runSync(task, phase) {
   if (syncPromise) {
     return syncPromise;
   }
 
   songIndex.setSyncInProgress(true);
+  songIndex.setSyncPhase(phase);
   syncPromise = task()
     .catch((error) => {
+      songIndex.setLastSyncError(error.message);
       // eslint-disable-next-line no-console
       console.error('Song index sync failed:', error.message);
       throw error;
     })
     .finally(() => {
       songIndex.setSyncInProgress(false);
+      songIndex.clearSyncProgress();
       syncPromise = null;
     });
 
@@ -223,19 +230,20 @@ function startBackgroundSync() {
 
   const songCount = songIndex.getSongCount();
   const task = songCount === 0 ? rebuildIndex : syncChanges;
+  const phase = songCount === 0 ? 'rebuild' : 'changes';
 
-  runSync(task).catch(() => {});
+  runSync(task, phase).catch(() => {});
 
   const intervalMs = Number(process.env.INDEX_SYNC_INTERVAL_MS) || 15 * 60 * 1000;
   setInterval(() => {
     if (!songIndex.getIndexStatus().syncInProgress) {
-      runSync(syncChanges).catch(() => {});
+      runSync(syncChanges, 'changes').catch(() => {});
     }
   }, intervalMs);
 }
 
 function rebuildIndexAsync() {
-  return runSync(rebuildIndex);
+  return runSync(rebuildIndex, 'rebuild');
 }
 
 module.exports = {
