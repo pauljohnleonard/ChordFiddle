@@ -64,3 +64,37 @@ export async function saveSong(fileId, content) {
     body: content,
   });
 }
+
+export async function fetchTags() {
+  return apiFetch('/tags');
+}
+
+export async function searchSongs({
+  q = '',
+  tag = '',
+  key = '',
+  artist = '',
+  folderId = 'root',
+  scope = 'all',
+  limit = 50,
+  offset = 0,
+} = {}) {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (tag) params.set('tag', tag);
+  if (key) params.set('key', key);
+  if (artist) params.set('artist', artist);
+  if (folderId) params.set('folderId', folderId);
+  if (scope) params.set('scope', scope);
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  return apiFetch(`/search?${params.toString()}`);
+}
+
+export async function getIndexStatus() {
+  return apiFetch('/index/status');
+}
+
+export async function rebuildIndex() {
+  return apiFetch('/index/rebuild', { method: 'POST' });
+}

@@ -1,6 +1,6 @@
 {
-  "short_name": "ChordFiddle",
-  "name": "ChordFiddle chord sheet editor",
+  "short_name": "CheeseJam",
+  "name": "CheeseJam chord sheet editor",
   "start_url": "./index.html",
   "display": "standalone",
   "theme_color": "#FFAE00",

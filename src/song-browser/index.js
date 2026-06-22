@@ -214,6 +214,7 @@ class SongBrowserApp {
       await saveSong(this.driveFile.id, content);
       this.chordSheet = content;
       this.savedChordSheet = content;
+      await this.songBrowser.loadTags();
       this.toast.show(`Saved to Google Drive: ${this.driveFile.name}`, 'success');
     } catch (error) {
       this.toast.show(error.message || 'Failed to save to Google Drive.', 'error');

@@ -12,7 +12,11 @@
     "prepublishOnly": "yarn install && yarn test && yarn build",
     "start": "webpack serve --open",
     "start:api": "node server/index.js",
-    "dev": "concurrently -k \"yarn start:api\" \"webpack serve --open\""
+    "start:prod": "node server/index.js",
+    "deploy": "scripts/deploy.sh",
+    "apache:disable-system": "scripts/disable-system-apache.sh",
+    "dev": "concurrently -k \"yarn start:api\" \"webpack serve --open\"",
+    "ug-to-chordpro": "node scripts/ug_to_chordpro.js"
   },
   "repository": {
     "type": "git",
@@ -39,6 +43,7 @@
   },
   "dependencies": {
     "@chordbook/editor": "^0.0.7",
+    "better-sqlite3": "^12.11.1",
     "chordsheetjs": "^15.4.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",

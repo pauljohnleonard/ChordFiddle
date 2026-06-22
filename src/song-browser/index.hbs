@@ -24,7 +24,6 @@
             <button type="button" id="googleAuth__signIn">Sign in with Google</button>
             <button type="button" id="googleAuth__signOut" hidden>Sign out</button>
           </li>
-          <li>Version {{package.version}}</li>
         </ul>
       </div>
     </header>
@@ -34,8 +33,29 @@
           <div class="SongBrowser__header">
             <h2 class="SongBrowser__title">Library</h2>
             <p class="SongBrowser__breadcrumb" id="songBrowser__breadcrumb">Songs</p>
+            <div class="SongBrowser__filters">
+              <input
+                type="search"
+                class="SongBrowser__search"
+                id="songBrowser__search"
+                placeholder="Search title, artist, file…"
+                autocomplete="off"
+              >
+              <div class="SongBrowser__scope" id="songBrowser__scope">
+                <label class="SongBrowser__scope-option">
+                  <input type="radio" name="songBrowserScope" value="folder" checked>
+                  This folder
+                </label>
+                <label class="SongBrowser__scope-option">
+                  <input type="radio" name="songBrowserScope" value="all">
+                  All songs
+                </label>
+              </div>
+              <div class="SongBrowser__tags" id="songBrowser__tags" hidden></div>
+            </div>
             <div class="SongBrowser__toolbar">
               <button class="SongBrowser__back-button" id="songBrowser__backButton" type="button" disabled>Up</button>
+              <button class="SongBrowser__clear-button" id="songBrowser__clearButton" type="button" hidden>Clear</button>
             </div>
           </div>
           <p class="SongBrowser__status" id="songBrowser__status"></p>

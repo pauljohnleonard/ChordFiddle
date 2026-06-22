@@ -96,7 +96,7 @@ async function listFolderPage(folderId, { pageToken, allowedExtensions }) {
   const drive = getDrive();
   const { data } = await drive.files.list({
     q: `'${folderId}' in parents and trashed=false`,
-    fields: 'nextPageToken,files(id,name,mimeType,shortcutDetails)',
+    fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,parents,shortcutDetails)',
     orderBy: 'folder,name',
     pageSize: 100,
     pageToken,
@@ -149,10 +149,127 @@ async function getFileMetadata(fileId) {
   const drive = getDrive();
   const { data } = await drive.files.get({
     fileId,
-    fields: 'id,name,mimeType,shortcutDetails,parents',
+    fields: 'id,name,mimeType,modifiedTime,shortcutDetails,parents',
     supportsAllDrives: true,
   });
   return resolveFile(data);
+}
+
+async function getStartChangesToken() {
+  const drive = getDrive();
+  const { data } = await drive.changes.getStartPageToken({
+    supportsAllDrives: true,
+  });
+  return data.startPageToken;
+}
+
+async function listChanges(pageToken) {
+  const drive = getDrive();
+  const changes = [];
+  let token = pageToken;
+  let newStartPageToken = null;
+
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const { data } = await drive.changes.list({
+      pageToken: token,
+      spaces: 'drive',
+      fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,modifiedTime,parents,trashed,shortcutDetails))',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    changes.push(...(data.changes || []));
+    if (data.newStartPageToken) {
+      newStartPageToken = data.newStartPageToken;
+      break;
+    }
+    token = data.nextPageToken;
+  } while (token);
+
+  return { changes, newStartPageToken };
+}
+
+async function buildFolderContext(folderId, rootFolderId) {
+  if (!folderId) {
+    return { folderPath: '', folderIdPath: rootFolderId };
+  }
+
+  const names = [];
+  const ids = [];
+  let currentId = folderId;
+  const visited = new Set();
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+
+    if (currentId === rootFolderId) {
+      ids.unshift(currentId);
+      break;
+    }
+
+    const drive = getDrive();
+    // eslint-disable-next-line no-await-in-loop
+    const { data } = await drive.files.get({
+      fileId: currentId,
+      fields: 'id,name,parents',
+      supportsAllDrives: true,
+    });
+
+    names.unshift(data.name);
+    ids.unshift(data.id);
+
+    const parents = data.parents || [];
+    if (parents.length === 0) {
+      break;
+    }
+
+    [currentId] = parents;
+  }
+
+  if (!ids.includes(rootFolderId)) {
+    return { folderPath: names.join(' / '), folderIdPath: ids.join('/') };
+  }
+
+  const rootIndex = ids.indexOf(rootFolderId);
+  return {
+    folderPath: names.slice(rootIndex + 1).join(' / '),
+    folderIdPath: ids.slice(rootIndex).join('/'),
+  };
+}
+
+async function isFileUnderRoot(fileId, rootFolderId) {
+  if (fileId === rootFolderId) {
+    return true;
+  }
+
+  const drive = getDrive();
+  let currentId = fileId;
+  const visited = new Set();
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+
+    if (currentId === rootFolderId) {
+      return true;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const { data } = await drive.files.get({
+      fileId: currentId,
+      fields: 'parents',
+      supportsAllDrives: true,
+    });
+
+    const parents = data.parents || [];
+    if (parents.length === 0) {
+      return false;
+    }
+
+    [currentId] = parents;
+  }
+
+  return false;
 }
 
 async function downloadSongContent(file) {
@@ -223,9 +340,16 @@ async function userCanEditFolder(email, folderId = getRootFolderId()) {
 
 module.exports = {
   getRootFolderId,
+  getAllowedExtensions,
+  isSongFile,
+  resolveFile,
   listAllFolderContents,
   getFileMetadata,
   downloadSongContent,
   uploadSongContent,
   userCanEditFolder,
+  getStartChangesToken,
+  listChanges,
+  isFileUnderRoot,
+  buildFolderContext,
 };
