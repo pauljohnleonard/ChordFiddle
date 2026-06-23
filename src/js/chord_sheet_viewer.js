@@ -44,8 +44,7 @@ class ChordSheetViewer extends Component {
   }
 
   getDisplayModeRadios() {
-    const element = this.element('displayModeHtml');
-    return Array.from(element.form[element.name]);
+    return Array.from(this.container.querySelectorAll('input[name="display_mode"]'));
   }
 
   getSelectedMode() {

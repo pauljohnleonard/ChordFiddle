@@ -1,6 +1,8 @@
 const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 const TOKEN_STORAGE_KEY = 'songBrowserGoogleAuth';
+const GIS_LOAD_TIMEOUT_MS = 8000;
+const USERINFO_TIMEOUT_MS = 5000;
 const SCOPES = [
   'openid',
   'email',
@@ -52,12 +54,22 @@ function loadGoogleIdentityServices() {
   }
 
   return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Google sign-in timed out'));
+    }, GIS_LOAD_TIMEOUT_MS);
+
     const script = document.createElement('script');
     script.src = GIS_SCRIPT;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    script.onload = () => {
+      clearTimeout(timeoutId);
+      resolve();
+    };
+    script.onerror = () => {
+      clearTimeout(timeoutId);
+      reject(new Error('Failed to load Google Identity Services'));
+    };
     document.head.appendChild(script);
   });
 }
@@ -68,17 +80,28 @@ async function fetchUserInfo() {
     return null;
   }
 
-  const response = await fetch(USERINFO_URL, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), USERINFO_TIMEOUT_MS);
 
-  if (!response.ok) {
+  try {
+    const response = await fetch(USERINFO_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      currentUser = null;
+      return null;
+    }
+
+    currentUser = await response.json();
+    return currentUser;
+  } catch {
     currentUser = null;
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  currentUser = await response.json();
-  return currentUser;
 }
 
 async function setSessionFromResponse(response) {
@@ -169,9 +192,14 @@ export async function initGoogleAuth() {
 
   if (!initPromise) {
     initPromise = (async () => {
-      await loadGoogleIdentityServices();
-      initTokenClient();
-      await restoreSession();
+      try {
+        await loadGoogleIdentityServices();
+        initTokenClient();
+        await restoreSession();
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn('Google auth init failed:', error.message);
+      }
     })();
   }
 
@@ -179,7 +207,12 @@ export async function initGoogleAuth() {
 }
 
 export function signIn() {
-  return requestAccessToken({ prompt: 'select_account' });
+  return initGoogleAuth().then(() => {
+    if (!tokenClient) {
+      throw new Error('Google sign-in is not available.');
+    }
+    return requestAccessToken({ prompt: 'select_account' });
+  });
 }
 
 export function signOut() {

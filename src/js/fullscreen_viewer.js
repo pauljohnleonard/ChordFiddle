@@ -22,6 +22,12 @@ function exitDocumentFullscreen() {
   return Promise.resolve(exit.call(document));
 }
 
+function preferCssFullscreen() {
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return isIos || !document.documentElement.requestFullscreen;
+}
+
 class FullscreenViewer extends Component {
   onClose = () => {};
 
@@ -47,7 +53,27 @@ class FullscreenViewer extends Component {
       return;
     }
 
+    // Native FS can drop on iOS scroll — fall back to CSS overlay instead of closing.
+    if (this.usesNativeFullscreen) {
+      this.usesNativeFullscreen = false;
+      document.body.classList.add('FullscreenViewer--bodyLock');
+      return;
+    }
+
     this.dismiss();
+  }
+
+  enterCssFullscreen() {
+    document.body.classList.add('FullscreenViewer--bodyLock');
+    this.scrollLockY = window.scrollY;
+  }
+
+  exitCssFullscreen() {
+    document.body.classList.remove('FullscreenViewer--bodyLock');
+    if (this.scrollLockY != null) {
+      window.scrollTo(0, this.scrollLockY);
+      this.scrollLockY = null;
+    }
   }
 
   async open({ title, content, mode }) {
@@ -59,11 +85,16 @@ class FullscreenViewer extends Component {
     this.setContent(content, mode);
     this.container.hidden = false;
 
+    if (preferCssFullscreen()) {
+      this.enterCssFullscreen();
+      return;
+    }
+
     try {
       await requestElementFullscreen(this.container);
       this.usesNativeFullscreen = true;
     } catch {
-      document.body.classList.add('FullscreenViewer--bodyLock');
+      this.enterCssFullscreen();
     }
   }
 
@@ -106,7 +137,7 @@ class FullscreenViewer extends Component {
     this.isOpen = false;
     this.usesNativeFullscreen = false;
     this.container.hidden = true;
-    document.body.classList.remove('FullscreenViewer--bodyLock');
+    this.exitCssFullscreen();
     this.onClose();
   }
 }

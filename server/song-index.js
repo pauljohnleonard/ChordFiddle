@@ -67,6 +67,44 @@ function setMeta(key, value) {
   `).run(key, value);
 }
 
+function sqlString(value) {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sqlString).filter(Boolean).join(', ');
+  }
+  return String(value);
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return [...new Set(
+    tags.flatMap((tag) => {
+      if (tag == null) {
+        return [];
+      }
+      if (Array.isArray(tag)) {
+        return normalizeTags(tag);
+      }
+      const normalized = String(tag).trim().toLowerCase();
+      return normalized ? [normalized] : [];
+    }),
+  )];
+}
+
 function upsertSong(record) {
   const database = getDb();
   const now = new Date().toISOString();
@@ -99,23 +137,23 @@ function upsertSong(record) {
 
   const transaction = database.transaction((song) => {
     upsert.run({
-      fileId: song.fileId,
-      name: song.name,
-      parentFolderId: song.parentFolderId,
-      folderPath: song.folderPath,
-      folderIdPath: song.folderIdPath,
-      modifiedTime: song.modifiedTime,
-      title: song.title,
-      artist: song.artist,
-      songKey: song.key,
-      capo: song.capo,
-      tempo: song.tempo,
-      parseError: song.parseError,
+      fileId: sqlString(song.fileId),
+      name: sqlString(song.name),
+      parentFolderId: sqlString(song.parentFolderId),
+      folderPath: sqlString(song.folderPath) || '',
+      folderIdPath: sqlString(song.folderIdPath) || '',
+      modifiedTime: sqlString(song.modifiedTime),
+      title: sqlString(song.title),
+      artist: sqlString(song.artist),
+      songKey: sqlString(song.key),
+      capo: sqlString(song.capo),
+      tempo: sqlString(song.tempo),
+      parseError: sqlString(song.parseError),
       updatedAt: now,
     });
 
     deleteTags.run(song.fileId);
-    song.tags.forEach((tag) => {
+    normalizeTags(song.tags).forEach((tag) => {
       insertTag.run(song.fileId, tag);
     });
   });

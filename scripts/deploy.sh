@@ -25,6 +25,7 @@ rsync -avz --delete \
   --exclude .env \
   --exclude service-account.json \
   --exclude 'client_secret*' \
+  --exclude 'server/data' \
   --exclude 'stupid-song*' \
   --exclude '.DS_Store' \
   ./ "${HOST}:~/${REMOTE_DIR}/"

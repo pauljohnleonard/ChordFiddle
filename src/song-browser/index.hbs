@@ -6,12 +6,56 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Browse and transpose ChordPro songs from Google Drive.">
   <title>{{config.title}}</title>
+  <style>
+    html { height: 100%; }
+    body {
+      background: #2F3131;
+      color: #f8f8f8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      min-height: 100%;
+    }
+    #root { min-height: 100vh; }
+    .App-loading { color: #ffae00; padding: 1.25rem; text-align: center; }
+    .App-error {
+      background: #4a2020;
+      color: #ffbdbd;
+      font-size: 0.85rem;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .Header__site-name a { color: #ffae00; text-decoration: none; }
+    .SongBrowser { background: #fff; color: #2F3131; }
+  </style>
 </head>
 <body>
 <noscript>
   You need to enable JavaScript to run this app.
 </noscript>
-<form id="root">
+<p class="App-loading" id="appLoading">Loading CheeseJam…</p>
+<pre class="App-error" id="appBootError" hidden></pre>
+<script>
+(function () {
+  function showError(message) {
+    var loading = document.getElementById('appLoading');
+    var error = document.getElementById('appBootError');
+    if (loading) loading.hidden = true;
+    if (error) {
+      error.hidden = false;
+      error.textContent = message;
+    }
+  }
+  window.addEventListener('error', function (event) {
+    showError(event.message || 'Script error');
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    showError(String(event.reason && event.reason.message ? event.reason.message : event.reason));
+  });
+})();
+</script>
+<div id="root">
   <div class="App SongBrowserApp">
     <header class="Header">
       <div class="Header__wrapper">
@@ -62,7 +106,7 @@
           <p class="SongBrowser__status" id="songBrowser__status"></p>
           <div class="SongBrowser__list" id="songBrowser__list"></div>
         </section>
-        <section class="App__column">
+        <section class="App__column App__column--editor">
           <div class="App__row App__row--grow App__row--relative">
             <ul class="Toolbar" id="toolbar">
               {{#each config.toolbar}}
@@ -79,7 +123,7 @@
             <div class="EditorContainer__errorMessage" id="chordSheetEditor__errorMessage"></div>
           </div>
         </section>
-        <section class="App__column" id="chordSheetViewer">
+        <section class="App__column App__column--viewer" id="chordSheetViewer">
           <div class="ChordSheetViewer__toolbar">
             <ul class="RadioGroup">
               {{#each config.displayModes}}
@@ -117,7 +161,7 @@
   <div class="Toast" id="toast" role="status" aria-live="polite">
     <p class="Toast__message" id="toast__message"></p>
   </div>
-</form>
+</div>
 
 <section class="FullscreenViewer" id="fullscreenViewer" hidden>
   <div class="FullscreenViewer__outlet ChordSheetViewer" id="fullscreenViewer__outlet"></div>

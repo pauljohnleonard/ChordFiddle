@@ -1,0 +1,39 @@
+@use '../sass/variables'
+
+html
+  height: 100%
+
+body
+  background-color: variables.$theme-background
+  color: variables.$theme-foreground
+  font-family: variables.$font-base
+  margin: 0
+  min-height: 100%
+
+#root
+  min-height: 100vh
+
+.App-loading
+  color: variables.$theme-primary
+  font-size: 0.95rem
+  padding: variables.$spacing-l
+  text-align: center
+
+.App-error
+  background: #4a2020
+  color: #ffbdbd
+  font-size: 0.85rem
+  padding: variables.$spacing-m
+  white-space: pre-wrap
+  word-break: break-word
+
+.Header
+  color: variables.$theme-foreground
+
+  &__site-name a
+    color: variables.$theme-primary
+    text-decoration: none
+
+.SongBrowser
+  background: variables.$theme-white
+  color: variables.$theme-background

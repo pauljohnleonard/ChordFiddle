@@ -16,6 +16,16 @@ const songIndex = require('./song-index');
 
 let syncPromise = null;
 
+const INDEX_BATCH_SIZE = 5;
+
+async function mapInBatches(items, batchSize, fn) {
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(batch.map(fn));
+  }
+}
+
 function buildFolderIdPath(ancestorIds) {
   return ancestorIds.join('/');
 }
@@ -27,40 +37,49 @@ async function indexSongRecord(file, {
   content = null,
 }) {
   const resolved = resolveFile(file);
-  let parsed = content != null ? parseChordProMetadata(content) : null;
 
-  if (!parsed) {
-    try {
+  try {
+    let parsed = content != null ? parseChordProMetadata(content) : null;
+
+    if (!parsed) {
       const downloaded = await downloadSongContent(file);
       parsed = parseChordProMetadata(downloaded);
-    } catch (error) {
-      parsed = {
-        title: null,
-        artist: null,
-        key: null,
-        capo: null,
-        tempo: null,
-        tags: [],
-        parseError: error.message,
-      };
     }
-  }
 
-  songIndex.upsertSong({
-    fileId: resolved.id,
-    name: file.name,
-    parentFolderId,
-    folderPath,
-    folderIdPath,
-    modifiedTime: file.modifiedTime || null,
-    title: parsed.title,
-    artist: parsed.artist,
-    key: parsed.key,
-    capo: parsed.capo,
-    tempo: parsed.tempo,
-    tags: parsed.tags,
-    parseError: parsed.parseError,
-  });
+    songIndex.upsertSong({
+      fileId: resolved.id,
+      name: file.name,
+      parentFolderId,
+      folderPath,
+      folderIdPath,
+      modifiedTime: file.modifiedTime || null,
+      title: parsed.title,
+      artist: parsed.artist,
+      key: parsed.key,
+      capo: parsed.capo,
+      tempo: parsed.tempo,
+      tags: parsed.tags,
+      parseError: parsed.parseError,
+    });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`Failed to index ${file.name}:`, error.message);
+    songIndex.upsertSong({
+      fileId: resolved.id,
+      name: file.name,
+      parentFolderId,
+      folderPath,
+      folderIdPath,
+      modifiedTime: file.modifiedTime || null,
+      title: null,
+      artist: null,
+      key: null,
+      capo: null,
+      tempo: null,
+      tags: [],
+      parseError: error.message,
+    });
+  }
 }
 
 async function crawlFolder(folderId, {
@@ -72,11 +91,11 @@ async function crawlFolder(folderId, {
   const folderIdPath = buildFolderIdPath(ancestorIds);
   const { folders, files } = await listAllFolderContents(folderId);
 
-  await Promise.all(files.map((file) => indexSongRecord(file, {
+  await mapInBatches(files, INDEX_BATCH_SIZE, (file) => indexSongRecord(file, {
     parentFolderId: folderId,
     folderPath,
     folderIdPath,
-  })));
+  }));
 
   await folders.reduce(async (previous, folder) => {
     await previous;
@@ -223,14 +242,18 @@ async function runSync(task, phase) {
   return syncPromise;
 }
 
+function indexNeedsRebuild() {
+  return songIndex.getSongCount() === 0 || !songIndex.getMeta('last_sync_at');
+}
+
 function startBackgroundSync() {
   if (!getRootFolderId()) {
     return;
   }
 
-  const songCount = songIndex.getSongCount();
-  const task = songCount === 0 ? rebuildIndex : syncChanges;
-  const phase = songCount === 0 ? 'rebuild' : 'changes';
+  const needsRebuild = indexNeedsRebuild();
+  const task = needsRebuild ? rebuildIndex : syncChanges;
+  const phase = needsRebuild ? 'rebuild' : 'changes';
 
   runSync(task, phase).catch(() => {});
 
@@ -252,4 +275,5 @@ module.exports = {
   indexSongFromContent,
   syncChanges,
   startBackgroundSync,
+  indexNeedsRebuild,
 };

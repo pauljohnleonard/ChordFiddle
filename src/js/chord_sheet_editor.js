@@ -1,14 +1,33 @@
 import { createEditor } from '@chordbook/editor';
 import { EditorSelection } from '@codemirror/state';
 import { linter, setDiagnostics } from '@codemirror/lint';
-import Component from './component';
 
-class ChordSheetEditor extends Component {
+class ChordSheetEditor {
   onChordSheetChange = () => {};
 
-  setup() {
+  constructor(containerID) {
+    this.containerID = containerID;
+    this.container = document.getElementById(containerID);
+
+    if (!this.container) {
+      throw new Error(`Could not find ChordSheetEditor container with ID: ${containerID}`);
+    }
+
+    this.editor = null;
+    this.initialDoc = this.container.querySelector('script')?.textContent || '';
+  }
+
+  element(elementID) {
+    return document.getElementById(`${this.containerID}__${elementID}`);
+  }
+
+  init() {
+    if (this.editor) {
+      return;
+    }
+
     this.editor = createEditor({
-      doc: this.container.querySelector('*').innerText,
+      doc: this.initialDoc,
       parent: this.container,
       extensions: [
         linter(),
@@ -23,11 +42,13 @@ class ChordSheetEditor extends Component {
   }
 
   getSelectionRange() {
+    this.init();
     const { from, to } = this.editor.state.selection.main;
     return [from, to];
   }
 
   setSelectionRange(selectionStart, selectionEnd) {
+    this.init();
     this.editor.dispatch({
       selection: EditorSelection.create([
         EditorSelection.range(selectionStart, selectionEnd),
@@ -37,23 +58,35 @@ class ChordSheetEditor extends Component {
   }
 
   focus() {
+    this.init();
     this.editor.focus();
   }
 
   getValue() {
+    if (!this.editor) {
+      return this.initialDoc;
+    }
     return this.editor.state.doc.toString();
   }
 
   setValue(value) {
+    this.initialDoc = value;
+    if (!this.editor) {
+      return;
+    }
     this.editor.dispatch({ changes: { from: 0, to: this.editor.state.doc.length, insert: value } });
     this.onChordSheetChange(value);
   }
 
   setError(error) {
-    this.element('errorMessage').innerText = error;
+    const errorElement = this.element('errorMessage');
+    if (errorElement) {
+      errorElement.innerText = error;
+    }
   }
 
   showError(message, location) {
+    this.init();
     this.editor.dispatch(setDiagnostics(this.editor.state, [{
       from: location.start.offset,
       to: location.end.offset,
@@ -63,6 +96,9 @@ class ChordSheetEditor extends Component {
   }
 
   resetError() {
+    if (!this.editor) {
+      return;
+    }
     this.editor.dispatch(setDiagnostics(this.editor.state, []));
   }
 

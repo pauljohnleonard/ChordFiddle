@@ -36,3 +36,49 @@
     .ChordSheetViewer
       border: 1px solid rgba(variables.$theme-background, 0.15)
       border-radius: 2px
+
+@media (max-width: 1024px)
+  html
+    height: auto
+
+  body
+    max-height: none
+    min-height: 100vh
+    overflow: auto
+    padding: variables.$spacing-s
+
+  #root
+    min-height: 0
+    width: 100%
+
+  .SongBrowserApp.App
+    max-height: none
+    overflow: visible
+
+    .App__container
+      height: auto
+      overflow: visible
+
+    .App__columns
+      flex-direction: column
+      height: auto
+      overflow: visible
+
+    .App__column
+      flex: 0 0 auto
+      max-height: none
+      overflow: visible
+
+    .App__column--editor
+      .EditorContainer,
+      .EditorContainer__errorMessage
+        display: none
+
+    .SongBrowser
+      flex: 0 0 auto
+      max-height: 45vh
+      width: 100%
+
+    #chordSheetViewer .ChordSheetViewer
+      max-height: none
+      min-height: 50vh

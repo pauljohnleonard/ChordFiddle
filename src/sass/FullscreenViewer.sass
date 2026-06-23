@@ -45,7 +45,9 @@
     height: 100%
     margin: 0 auto
     max-width: 48rem
+    -webkit-overflow-scrolling: touch
     overflow: auto
+    overscroll-behavior: contain
     padding: variables.$spacing-l
     width: 100%
 
@@ -80,7 +82,10 @@
         line-height: 150%
 
 body.FullscreenViewer--bodyLock
+  height: 100%
   overflow: hidden
+  position: fixed
+  width: 100%
 
 .ChordSheetViewer__toolbar
   align-items: center

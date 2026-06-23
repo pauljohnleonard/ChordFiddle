@@ -1,11 +1,7 @@
-import chordsheetjs from 'chordsheetjs';
 import lodashSet from 'lodash.set';
 
-import './main.sass';
+import './critical.sass';
 
-import ChordSheetEditor from '../js/chord_sheet_editor';
-import ChordSheetViewer from '../js/chord_sheet_viewer';
-import SongEditorToolbar from '../js/song_editor_toolbar';
 import SongBrowser from '../js/song_browser';
 import GoogleAuthBar from '../js/google_auth_bar';
 import Toast from '../js/toast';
@@ -13,10 +9,22 @@ import debounce from '../js/debounce';
 import { getSongBrowserQueryParams, setSongBrowserQueryParams } from '../js/song_browser_hash';
 import { fetchMe, saveSong } from '../js/song_api_client';
 import { initGoogleAuth, isSignedIn } from '../js/google_auth';
-import FullscreenViewer from '../js/fullscreen_viewer';
 import songBrowserConfig from '../../song-browser-config.json';
 
 const SAVE_LABEL = songBrowserConfig.toolbar.saveSong;
+
+let chordsheetjsModule = null;
+
+function isTabletLayout() {
+  return window.matchMedia('(max-width: 1024px)').matches;
+}
+
+function hideLoadingBanner() {
+  const loading = document.getElementById('appLoading');
+  if (loading) {
+    loading.hidden = true;
+  }
+}
 
 function defaultFormatterConfig(formatterConfig) {
   const config = {};
@@ -35,6 +43,39 @@ function defaultFormatterConfig(formatterConfig) {
   return config;
 }
 
+async function loadChordsheetjs() {
+  if (!chordsheetjsModule) {
+    chordsheetjsModule = (await import('chordsheetjs')).default;
+  }
+  return chordsheetjsModule;
+}
+
+async function loadHeavyUi(isTablet) {
+  const [
+    { default: ChordSheetViewer },
+    { default: SongEditorToolbar },
+    { default: FullscreenViewer },
+  ] = await Promise.all([
+    import('../js/chord_sheet_viewer'),
+    import('../js/song_editor_toolbar'),
+    import('../js/fullscreen_viewer'),
+    import('./main.sass'),
+  ]);
+
+  let chordSheetEditor = null;
+  if (!isTablet) {
+    const { default: ChordSheetEditor } = await import('../js/chord_sheet_editor');
+    chordSheetEditor = new ChordSheetEditor('chordSheetEditor');
+  }
+
+  return {
+    chordSheetViewer: new ChordSheetViewer('chordSheetViewer'),
+    toolbar: new SongEditorToolbar('toolbar'),
+    fullscreenViewer: new FullscreenViewer('fullscreenViewer'),
+    chordSheetEditor,
+  };
+}
+
 class SongBrowserApp {
   song;
   chordSheet = '';
@@ -45,15 +86,16 @@ class SongBrowserApp {
   driveFile = null;
   canEditCurrentFile = false;
   isSaving = false;
+  chordSheetEditor = null;
+  chordSheetViewer = null;
+  toolbar = null;
+  fullscreenViewer = null;
+  pendingQueryParams = null;
 
   constructor() {
-    this.chordSheetEditor = new ChordSheetEditor('chordSheetEditor');
-    this.chordSheetViewer = new ChordSheetViewer('chordSheetViewer');
-    this.toolbar = new SongEditorToolbar('toolbar');
     this.songBrowser = new SongBrowser('songBrowser');
     this.googleAuth = new GoogleAuthBar('googleAuth');
     this.toast = new Toast('toast');
-    this.fullscreenViewer = new FullscreenViewer('fullscreenViewer');
   }
 
   async start() {
@@ -62,19 +104,44 @@ class SongBrowserApp {
       allowedExtensions: songBrowserConfig.googleDrive.allowedExtensions,
     });
 
-    this.syncWithQueryParams();
+    this.pendingQueryParams = getSongBrowserQueryParams();
+
+    void this.songBrowser.loadRoot();
+    hideLoadingBanner();
+
+    initGoogleAuth()
+      .then(async () => {
+        if (isSignedIn()) {
+          await this.refreshEditPermission();
+          this.updateSaveState();
+        }
+      })
+      .catch(() => {});
+
+    await this.initHeavyUi();
+  }
+
+  async initHeavyUi() {
+    const isTablet = isTabletLayout();
+    const heavyUi = await loadHeavyUi(isTablet);
+    this.chordSheetViewer = heavyUi.chordSheetViewer;
+    this.toolbar = heavyUi.toolbar;
+    this.fullscreenViewer = heavyUi.fullscreenViewer;
+    this.chordSheetEditor = heavyUi.chordSheetEditor || {
+      getValue: () => this.chordSheet,
+      setValue: (value) => { this.chordSheet = value; },
+      resetError: () => {},
+      showError: () => {},
+    };
+
+    this.applyQueryParams();
     this.render();
     this.addChangeListeners();
-    await initGoogleAuth();
-    if (isSignedIn()) {
-      await this.refreshEditPermission();
-    }
-    this.songBrowser.loadRoot();
     this.updateSaveState();
   }
 
-  syncWithQueryParams() {
-    const { chordSheet, displayMode, driveFileId } = getSongBrowserQueryParams();
+  applyQueryParams() {
+    const { chordSheet, displayMode, driveFileId } = this.pendingQueryParams || {};
 
     this.driveFileId = driveFileId;
 
@@ -106,19 +173,26 @@ class SongBrowserApp {
     this.chordSheetViewer.onFullscreenClick = () => this.openFullscreen();
 
     this.toolbar.onTransformClick = (transform) => {
-      this.chordSheetEditor.transformChordSheet(transform);
-      this.chordSheet = this.chordSheetEditor.getValue();
+      if (isTabletLayout()) {
+        this.chordSheet = transform(this.chordSheet);
+        this.chordSheetEditor.setValue(this.chordSheet);
+      } else {
+        this.chordSheetEditor.transformChordSheet(transform);
+        this.chordSheet = this.chordSheetEditor.getValue();
+      }
       this.updateSaveState();
       this.debouncedRender();
     };
 
     this.toolbar.onSaveClick = () => this.saveCurrentSong();
 
-    this.chordSheetEditor.onChordSheetChange = (newChordSheet) => {
-      this.chordSheet = newChordSheet;
-      this.updateSaveState();
-      this.debouncedRender();
-    };
+    if (this.chordSheetEditor.onChordSheetChange !== undefined) {
+      this.chordSheetEditor.onChordSheetChange = (newChordSheet) => {
+        this.chordSheet = newChordSheet;
+        this.updateSaveState();
+        this.debouncedRender();
+      };
+    }
 
     this.songBrowser.onSongSelected = async ({ file, content }) => {
       this.driveFile = file;
@@ -191,6 +265,10 @@ class SongBrowserApp {
   }
 
   updateSaveState() {
+    if (!this.toolbar) {
+      return;
+    }
+
     const { enabled, reason } = this.getSaveState();
     this.toolbar.setSaveEnabled(enabled, reason);
 
@@ -253,6 +331,10 @@ class SongBrowserApp {
   }
 
   updateFullscreenButton() {
+    if (!this.chordSheetViewer) {
+      return;
+    }
+
     const button = this.chordSheetViewer.element('fullscreen');
     if (button) {
       button.disabled = !this.chordSheet;
@@ -260,6 +342,10 @@ class SongBrowserApp {
   }
 
   render() {
+    if (!this.chordSheetViewer) {
+      return;
+    }
+
     this.renderChordSheet();
     this.updateQueryParams();
   }
@@ -270,7 +356,7 @@ class SongBrowserApp {
     this.updateSaveState();
   }, 100);
 
-  renderChordSheet() {
+  async renderChordSheet() {
     if (!this.chordSheet) {
       this.chordSheetViewer.element('outlet').innerHTML = '<p class="SongBrowserApp__placeholder">Select a song from the library.</p>';
       this.updateFullscreenButton();
@@ -278,14 +364,19 @@ class SongBrowserApp {
     }
 
     try {
+      const chordsheetjs = await loadChordsheetjs();
       const parser = new chordsheetjs.ChordProParser();
       this.song = parser.parse(this.chordSheet);
       this.chordSheetViewer.render(this.song, this.config);
       this.chordSheetEditor.resetError();
       this.syncFullscreenPreview();
-    } catch ({ message, location }) {
+    } catch (error) {
+      const message = error.message || String(error);
+      const location = error.location;
       console.error(message);
-      this.chordSheetEditor.showError(message, location);
+      if (location) {
+        this.chordSheetEditor.showError(message, location);
+      }
     }
 
     this.updateFullscreenButton();
@@ -300,4 +391,19 @@ class SongBrowserApp {
   }
 }
 
-new SongBrowserApp().start();
+function showBootError(message) {
+  hideLoadingBanner();
+  const errorElement = document.getElementById('appBootError');
+  if (errorElement) {
+    errorElement.hidden = false;
+    errorElement.textContent = message;
+  }
+}
+
+try {
+  new SongBrowserApp().start().catch((error) => {
+    showBootError(error.message || 'Failed to start CheeseJam');
+  });
+} catch (error) {
+  showBootError(error.message || 'Failed to start CheeseJam');
+}

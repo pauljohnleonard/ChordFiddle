@@ -16,7 +16,8 @@
     "deploy": "scripts/deploy.sh",
     "apache:disable-system": "scripts/disable-system-apache.sh",
     "dev": "concurrently -k \"yarn start:api\" \"webpack serve --open\"",
-    "ug-to-chordpro": "node scripts/ug_to_chordpro.js"
+    "ug-to-chordpro": "node scripts/ug_to_chordpro.js",
+    "index:rebuild": "node server/rebuild-index-cli.js"
   },
   "repository": {
     "type": "git",
