@@ -66,6 +66,11 @@ export function getSongListLabel({ title, name }) {
   return displaySongName(name || '');
 }
 
+export function getSongSubtitleLine({ subtitle }) {
+  const trimmed = subtitle?.trim();
+  return trimmed || null;
+}
+
 export function getFileNameMeta({ title, name }) {
   if (!title?.trim() || !name) {
     return null;

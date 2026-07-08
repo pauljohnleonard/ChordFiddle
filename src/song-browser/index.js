@@ -196,6 +196,7 @@ class SongBrowserApp {
         if (this.driveFile) {
           this.songBrowser.setSelectedSongMeta({
             title: parseTitleFromChordPro(newChordSheet),
+            subtitle: parseSubtitleFromChordPro(newChordSheet),
             name: this.driveFile.name,
           });
         }
@@ -204,7 +205,7 @@ class SongBrowserApp {
       };
     }
 
-    this.songBrowser.onSongSelected = async ({ file, content, title }) => {
+    this.songBrowser.onSongSelected = async ({ file, content, title, subtitle }) => {
       this.driveFile = file;
       this.driveFileId = file.id;
       this.chordSheet = content;
@@ -214,6 +215,7 @@ class SongBrowserApp {
       this.songBrowser.setSelectedSongMeta({
         name: file.name,
         title: title || parseTitleFromChordPro(content),
+        subtitle: subtitle || parseSubtitleFromChordPro(content),
       });
       await this.refreshEditPermission();
       this.songBrowser.setCanManageFiles(this.canEditCurrentFile);
@@ -399,11 +401,7 @@ class SongBrowserApp {
       this.songBrowser.setSelectedSongMeta({
         name: this.driveFile.name,
         title: parseTitleFromChordPro(content),
-      });
-      this.songBrowser.refreshListedSelectionMeta({
-        title: parseTitleFromChordPro(content),
         subtitle: parseSubtitleFromChordPro(content),
-        name: this.driveFile.name,
       });
       await this.songBrowser.loadTags();
       this.toast.show(`Saved to Google Drive: ${this.driveFile.name}`, 'success');

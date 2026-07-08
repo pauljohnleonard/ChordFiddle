@@ -14,6 +14,7 @@ import {
   displaySongName,
   getSongListLabel,
   getFileNameMeta,
+  getSongSubtitleLine,
   fileNameMatchesTitle,
   fileNameFromTitle,
   getFileExtension,
@@ -62,6 +63,7 @@ class SongBrowser extends Component {
   selectedFileId = null;
   selectedFileName = null;
   selectedFileTitle = null;
+  selectedFileSubtitle = null;
   canManageFiles = false;
   searchQuery = '';
   selectedTag = '';
@@ -122,12 +124,22 @@ class SongBrowser extends Component {
     this.updateFileActionButtons();
   }
 
-  setSelectedSongMeta({ title, name } = {}) {
+  setSelectedSongMeta({ title, subtitle, name } = {}) {
     if (name !== undefined) {
       this.selectedFileName = name;
     }
     if (title !== undefined) {
       this.selectedFileTitle = title;
+    }
+    if (subtitle !== undefined) {
+      this.selectedFileSubtitle = subtitle;
+    }
+    if (this.selectedFileId && (title !== undefined || subtitle !== undefined || name !== undefined)) {
+      this.updateListedSong(this.selectedFileId, {
+        title: this.selectedFileTitle,
+        subtitle: this.selectedFileSubtitle,
+        name: this.selectedFileName,
+      });
     }
     this.updateFileActionButtons();
   }
@@ -165,26 +177,6 @@ class SongBrowser extends Component {
     }
 
     this.updateSelectionLabel();
-  }
-
-  refreshListedSelectionMeta({ title, subtitle, name } = {}) {
-    if (!this.selectedFileId) {
-      return;
-    }
-
-    if (name !== undefined) {
-      this.selectedFileName = name;
-    }
-    if (title !== undefined) {
-      this.selectedFileTitle = title;
-    }
-
-    this.updateListedSong(this.selectedFileId, {
-      title: this.selectedFileTitle,
-      subtitle,
-      name: this.selectedFileName,
-    });
-    this.updateFileActionButtons();
   }
 
   updateSelectionLabel() {
@@ -529,16 +521,16 @@ class SongBrowser extends Component {
     if (fileId) {
       item.dataset.fileId = fileId;
     }
-    const trimmedSubtitle = subtitle?.trim();
-    if (trimmedSubtitle) {
-      this.appendListItemSubtitle(item, trimmedSubtitle);
+    const subtitleLine = getSongSubtitleLine({ subtitle });
+    if (subtitleLine) {
+      this.appendListItemSubtitle(item, subtitleLine);
     }
     const fileMeta = getFileNameMeta({ title, name });
     if (fileMeta) {
       this.appendListItemMeta(item, fileMeta);
     }
     if (folderPath) {
-      this.appendListItemMeta(item, folderPath);
+      this.appendListItemMeta(item, folderPath, 'folder');
     }
     return item;
   }
@@ -571,9 +563,9 @@ class SongBrowser extends Component {
     item.querySelectorAll('.SongBrowser__item-subtitle, .SongBrowser__item-meta').forEach((line) => {
       line.remove();
     });
-    const trimmedSubtitle = subtitle?.trim();
-    if (trimmedSubtitle) {
-      this.appendListItemSubtitle(item, trimmedSubtitle);
+    const subtitleLine = getSongSubtitleLine({ subtitle });
+    if (subtitleLine) {
+      this.appendListItemSubtitle(item, subtitleLine);
     }
     const fileMeta = getFileNameMeta({ title, name });
     if (fileMeta) {
@@ -588,9 +580,11 @@ class SongBrowser extends Component {
     item.appendChild(subtitle);
   }
 
-  appendListItemMeta(item, text) {
+  appendListItemMeta(item, text, variant = 'file') {
     const meta = document.createElement('span');
-    meta.className = 'SongBrowser__item-meta';
+    meta.className = variant === 'file'
+      ? 'SongBrowser__item-meta'
+      : `SongBrowser__item-meta SongBrowser__item-meta--${variant}`;
     meta.textContent = text;
     item.appendChild(meta);
   }
@@ -634,15 +628,22 @@ class SongBrowser extends Component {
     this.selectedFileId = file.id;
     this.selectedFileName = file.name;
     this.selectedFileTitle = file.title || null;
+    this.selectedFileSubtitle = file.subtitle || null;
     this.updateFileActionButtons();
     this.updateListSelection();
     this.setStatus(`Loading ${getSongListLabel({ title: file.title, name: file.name })}…`);
 
     try {
-      const { file: metadata, content, title } = await loadSong(file.id);
+      const { file: metadata, content, title, subtitle } = await loadSong(file.id);
       this.selectedFileTitle = title || file.title || null;
+      this.selectedFileSubtitle = subtitle || file.subtitle || null;
       this.updateFileActionButtons();
-      this.onSongSelected({ file: metadata, content, title: this.selectedFileTitle });
+      this.onSongSelected({
+        file: metadata,
+        content,
+        title: this.selectedFileTitle,
+        subtitle: this.selectedFileSubtitle,
+      });
       this.setStatus('');
     } catch (error) {
       this.handleError(error);
@@ -662,10 +663,18 @@ class SongBrowser extends Component {
     this.setStatus(`Loading ${getSongListLabel({ title, name })}…`);
 
     try {
-      const { file: metadata, content, title: indexTitle } = await loadSong(fileId);
+      const {
+        file: metadata, content, title: indexTitle, subtitle: indexSubtitle,
+      } = await loadSong(fileId);
       this.selectedFileTitle = indexTitle || title || null;
+      this.selectedFileSubtitle = indexSubtitle || null;
       this.updateFileActionButtons();
-      this.onSongSelected({ file: metadata, content, title: this.selectedFileTitle });
+      this.onSongSelected({
+        file: metadata,
+        content,
+        title: this.selectedFileTitle,
+        subtitle: this.selectedFileSubtitle,
+      });
       this.setStatus('');
     } catch (error) {
       this.handleError(error);
@@ -742,6 +751,7 @@ class SongBrowser extends Component {
       this.selectedFileId = null;
       this.selectedFileName = null;
       this.selectedFileTitle = null;
+      this.selectedFileSubtitle = null;
       this.updateFileActionButtons();
       this.onSongDeleted(deletedFileId);
       this.setStatus('');
