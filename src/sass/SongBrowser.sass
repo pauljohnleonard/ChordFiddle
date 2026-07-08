@@ -80,11 +80,32 @@
 
   &__toolbar
     display: flex
+    flex-wrap: wrap
     gap: variables.$spacing-s
-    margin-top: variables.$spacing-s
+
+    &--nav
+      margin-top: variables.$spacing-s
+
+    &--song
+      gap: variables.$spacing-s
+
+  &__song-actions
+    background: #f8f8f8
+    border-top: 1px solid #ddd
+    flex: 0 0 auto
+    padding: variables.$spacing-m
+
+  &__song-actions-label
+    font-size: 0.8rem
+    font-weight: 600
+    margin: 0 0 variables.$spacing-s
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
 
   &__back-button,
-  &__clear-button
+  &__clear-button,
+  &__file-button
     background: variables.$theme-white
     border: none
     border-radius: 2px
@@ -93,16 +114,24 @@
     font-size: 0.85rem
     padding: variables.$spacing-s variables.$spacing-m
 
+    &[hidden]
+      display: none
+
     &:disabled
       cursor: default
       opacity: 0.5
+
+  &__file-button--delete
+    color: #8a1f1f
 
   &__status
     color: #666
     flex: 0 0 auto
     font-size: 0.85rem
-    min-height: 1.25rem
     padding: 0 variables.$spacing-m variables.$spacing-s
+
+    &[hidden]
+      display: none
 
   &__index-status
     background: #f8f8f8
@@ -163,6 +192,14 @@
       font-weight: 600
 
   &__item-label
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  &__item-subtitle
+    color: #444
+    font-size: 0.8rem
+    font-style: italic
     overflow: hidden
     text-overflow: ellipsis
     white-space: nowrap

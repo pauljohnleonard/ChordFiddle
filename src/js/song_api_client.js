@@ -65,6 +65,34 @@ export async function saveSong(fileId, content) {
   });
 }
 
+export async function renameSong(fileId, name) {
+  return apiFetch(`/songs/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deleteSong(fileId) {
+  return apiFetch(`/songs/${fileId}`, { method: 'DELETE' });
+}
+
+export async function createSong({ content, name, folderId }) {
+  return apiFetch('/songs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, name, folderId }),
+  });
+}
+
+export async function importFromUrl(url) {
+  return apiFetch('/import/url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+}
+
 export async function fetchTags() {
   return apiFetch('/tags');
 }

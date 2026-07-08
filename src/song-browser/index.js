@@ -5,10 +5,16 @@ import './critical.sass';
 import SongBrowser from '../js/song_browser';
 import GoogleAuthBar from '../js/google_auth_bar';
 import Toast from '../js/toast';
+import UrlImportDialog from '../js/url_import_dialog';
 import debounce from '../js/debounce';
 import { getSongBrowserQueryParams, setSongBrowserQueryParams } from '../js/song_browser_hash';
-import { fetchMe, saveSong } from '../js/song_api_client';
+import { fetchMe, saveSong, createSong } from '../js/song_api_client';
 import { initGoogleAuth, isSignedIn } from '../js/google_auth';
+import {
+  suggestFileNameFromChordPro,
+  parseTitleFromChordPro,
+  parseSubtitleFromChordPro,
+} from '../js/song_naming';
 import songBrowserConfig from '../../song-browser-config.json';
 
 const SAVE_LABEL = songBrowserConfig.toolbar.saveSong;
@@ -50,13 +56,19 @@ async function loadChordsheetjs() {
   return chordsheetjsModule;
 }
 
+async function formatChordSheetMarkup(chordSheet, config) {
+  const chordsheetjs = await loadChordsheetjs();
+  const parser = new chordsheetjs.ChordProParser();
+  const song = parser.parse(chordSheet);
+  const formatter = new chordsheetjs.HtmlDivFormatter(config);
+  return { song, html: formatter.format(song) };
+}
+
 async function loadHeavyUi(isTablet) {
   const [
-    { default: ChordSheetViewer },
     { default: SongEditorToolbar },
     { default: FullscreenViewer },
   ] = await Promise.all([
-    import('../js/chord_sheet_viewer'),
     import('../js/song_editor_toolbar'),
     import('../js/fullscreen_viewer'),
     import('./main.sass'),
@@ -66,10 +78,10 @@ async function loadHeavyUi(isTablet) {
   if (!isTablet) {
     const { default: ChordSheetEditor } = await import('../js/chord_sheet_editor');
     chordSheetEditor = new ChordSheetEditor('chordSheetEditor');
+    chordSheetEditor.init();
   }
 
   return {
-    chordSheetViewer: new ChordSheetViewer('chordSheetViewer'),
     toolbar: new SongEditorToolbar('toolbar'),
     fullscreenViewer: new FullscreenViewer('fullscreenViewer'),
     chordSheetEditor,
@@ -81,13 +93,12 @@ class SongBrowserApp {
   chordSheet = '';
   savedChordSheet = '';
   config = defaultFormatterConfig(songBrowserConfig.formatterConfig);
-  displayMode;
   driveFileId = null;
   driveFile = null;
+  pendingFileName = null;
   canEditCurrentFile = false;
   isSaving = false;
   chordSheetEditor = null;
-  chordSheetViewer = null;
   toolbar = null;
   fullscreenViewer = null;
   pendingQueryParams = null;
@@ -96,9 +107,12 @@ class SongBrowserApp {
     this.songBrowser = new SongBrowser('songBrowser');
     this.googleAuth = new GoogleAuthBar('googleAuth');
     this.toast = new Toast('toast');
+    this.urlImportDialog = new UrlImportDialog('importDialog');
   }
 
   async start() {
+    this.urlImportDialog.onImported = (result) => this.handleImportedSong(result);
+
     this.songBrowser.configure({
       rootFolderId: 'root',
       allowedExtensions: songBrowserConfig.googleDrive.allowedExtensions,
@@ -124,7 +138,6 @@ class SongBrowserApp {
   async initHeavyUi() {
     const isTablet = isTabletLayout();
     const heavyUi = await loadHeavyUi(isTablet);
-    this.chordSheetViewer = heavyUi.chordSheetViewer;
     this.toolbar = heavyUi.toolbar;
     this.fullscreenViewer = heavyUi.fullscreenViewer;
     this.chordSheetEditor = heavyUi.chordSheetEditor || {
@@ -138,19 +151,13 @@ class SongBrowserApp {
     this.render();
     this.addChangeListeners();
     this.updateSaveState();
+    this.updateViewState();
   }
 
   applyQueryParams() {
-    const { chordSheet, displayMode, driveFileId } = this.pendingQueryParams || {};
+    const { chordSheet, driveFileId } = this.pendingQueryParams || {};
 
     this.driveFileId = driveFileId;
-
-    if (displayMode) {
-      this.displayMode = displayMode;
-      this.chordSheetViewer.setSelectedMode(displayMode);
-    } else {
-      this.displayMode = this.chordSheetViewer.getSelectedMode();
-    }
 
     if (chordSheet) {
       this.chordSheet = chordSheet;
@@ -165,12 +172,9 @@ class SongBrowserApp {
   }
 
   addChangeListeners() {
-    this.chordSheetViewer.onDisplayModeChanged = (displayMode) => {
-      this.displayMode = displayMode;
-      this.render();
-    };
-
-    this.chordSheetViewer.onFullscreenClick = () => this.openFullscreen();
+    this.toolbar.onViewClick = () => this.openView();
+    this.toolbar.onImportClick = () => this.urlImportDialog.open();
+    this.toolbar.onNewClick = () => this.newSong();
 
     this.toolbar.onTransformClick = (transform) => {
       if (isTabletLayout()) {
@@ -189,25 +193,61 @@ class SongBrowserApp {
     if (this.chordSheetEditor.onChordSheetChange !== undefined) {
       this.chordSheetEditor.onChordSheetChange = (newChordSheet) => {
         this.chordSheet = newChordSheet;
+        if (this.driveFile) {
+          this.songBrowser.setSelectedSongMeta({
+            title: parseTitleFromChordPro(newChordSheet),
+            name: this.driveFile.name,
+          });
+        }
         this.updateSaveState();
         this.debouncedRender();
       };
     }
 
-    this.songBrowser.onSongSelected = async ({ file, content }) => {
+    this.songBrowser.onSongSelected = async ({ file, content, title }) => {
       this.driveFile = file;
       this.driveFileId = file.id;
       this.chordSheet = content;
       this.savedChordSheet = content;
       this.chordSheetEditor.setValue(content);
       document.title = `${file.name} — ${songBrowserConfig.title}`;
+      this.songBrowser.setSelectedSongMeta({
+        name: file.name,
+        title: title || parseTitleFromChordPro(content),
+      });
       await this.refreshEditPermission();
+      this.songBrowser.setCanManageFiles(this.canEditCurrentFile);
       this.render();
       this.updateSaveState();
+      this.updateViewState();
+    };
+
+    this.songBrowser.onSongRenamed = ({ file }) => {
+      if (this.driveFile?.id === file.id) {
+        this.driveFile = file;
+        document.title = `${file.name} — ${songBrowserConfig.title}`;
+      }
+      this.toast.show(`Renamed to ${file.name}`, 'success');
+    };
+
+    this.songBrowser.onSongDeleted = (fileId) => {
+      if (this.driveFile?.id === fileId) {
+        this.driveFile = null;
+        this.driveFileId = null;
+        this.chordSheet = '';
+        this.savedChordSheet = '';
+        this.chordSheetEditor.setValue('');
+        document.title = songBrowserConfig.title;
+        this.render();
+        this.updateSaveState();
+        this.updateViewState();
+      }
+      this.toast.show('Song moved to Google Drive bin', 'success');
     };
 
     this.googleAuth.onAuthChange = async () => {
       await this.refreshEditPermission();
+      this.songBrowser.setCanManageFiles(this.canEditCurrentFile);
       this.updateSaveState();
     };
   }
@@ -242,8 +282,8 @@ class SongBrowserApp {
       return { enabled: false, reason: 'Saving…' };
     }
 
-    if (!this.driveFile) {
-      return { enabled: false, reason: 'Open a song from the library first' };
+    if (!this.chordSheet.trim()) {
+      return { enabled: false, reason: 'Open or import a song first' };
     }
 
     if (!isSignedIn()) {
@@ -257,11 +297,49 @@ class SongBrowserApp {
       };
     }
 
+    if (!this.driveFile) {
+      return { enabled: true, reason: 'Save new song to Google Drive' };
+    }
+
     if (!this.isDirty()) {
       return { enabled: false, reason: 'No changes to save' };
     }
 
     return { enabled: true, reason: 'Save changes to Google Drive' };
+  }
+
+  handleImportedSong({ chordPro, title, suggestedFileName }) {
+    this.driveFile = null;
+    this.driveFileId = null;
+    this.pendingFileName = suggestedFileName || suggestFileNameFromChordPro(chordPro);
+    this.chordSheet = chordPro;
+    this.savedChordSheet = chordPro;
+
+    if (this.chordSheetEditor) {
+      this.chordSheetEditor.setValue(chordPro);
+    }
+
+    document.title = `${title || 'Imported song'} — ${songBrowserConfig.title}`;
+    void this.refreshEditPermission().then(() => {
+      this.updateSaveState();
+    });
+    this.render();
+    this.updateViewState();
+    this.toast.show(`Imported “${title || 'song'}”. Edit if needed, then save to Drive.`, 'success');
+  }
+
+  newSong() {
+    const template = '{title: }\n{artist: }\n\n';
+    this.driveFile = null;
+    this.driveFileId = null;
+    this.pendingFileName = null;
+    this.chordSheet = template;
+    this.savedChordSheet = template;
+    this.chordSheetEditor.setValue(template);
+    document.title = `New song — ${songBrowserConfig.title}`;
+    this.render();
+    this.updateSaveState();
+    this.updateViewState();
   }
 
   updateSaveState() {
@@ -277,6 +355,18 @@ class SongBrowserApp {
     }
   }
 
+  updateViewState() {
+    if (!this.toolbar) {
+      return;
+    }
+
+    const enabled = Boolean(this.chordSheet);
+    this.toolbar.setViewEnabled(
+      enabled,
+      enabled ? 'View formatted song' : 'Open a song from the library first',
+    );
+  }
+
   async saveCurrentSong() {
     const { enabled } = this.getSaveState();
     if (!enabled) {
@@ -289,9 +379,32 @@ class SongBrowserApp {
 
     try {
       const content = this.chordSheetEditor.getValue();
-      await saveSong(this.driveFile.id, content);
+
+      if (this.driveFile) {
+        await saveSong(this.driveFile.id, content);
+      } else {
+        const { file } = await createSong({
+          content,
+          name: suggestFileNameFromChordPro(content) || this.pendingFileName || 'new-song.pro',
+          folderId: this.songBrowser.getCurrentFolderId(),
+        });
+        this.driveFile = file;
+        this.driveFileId = file.id;
+        this.pendingFileName = null;
+        await this.songBrowser.refreshList();
+      }
+
       this.chordSheet = content;
       this.savedChordSheet = content;
+      this.songBrowser.setSelectedSongMeta({
+        name: this.driveFile.name,
+        title: parseTitleFromChordPro(content),
+      });
+      this.songBrowser.refreshListedSelectionMeta({
+        title: parseTitleFromChordPro(content),
+        subtitle: parseSubtitleFromChordPro(content),
+        name: this.driveFile.name,
+      });
       await this.songBrowser.loadTags();
       this.toast.show(`Saved to Google Drive: ${this.driveFile.name}`, 'success');
     } catch (error) {
@@ -303,46 +416,38 @@ class SongBrowserApp {
     }
   }
 
-  openFullscreen() {
+  async openView() {
     if (!this.chordSheet) {
       return;
     }
 
-    const outlet = this.chordSheetViewer.element('outlet');
-    const mode = this.chordSheetViewer.getSelectedMode();
-    const content = mode === 'text' ? outlet.innerText : outlet.innerHTML;
-
-    this.fullscreenViewer.open({
-      title: this.driveFile?.name || songBrowserConfig.title,
-      content,
-      mode,
-    });
+    try {
+      const { html } = await formatChordSheetMarkup(this.chordSheet, this.config);
+      this.fullscreenViewer.open({
+        title: this.driveFile?.name || songBrowserConfig.title,
+        content: html,
+        mode: 'html',
+      });
+    } catch (error) {
+      this.toast.show(error.message || 'Could not render song.', 'error');
+    }
   }
 
-  syncFullscreenPreview() {
-    if (!this.fullscreenViewer.isOpen) {
+  async syncViewPreview() {
+    if (!this.fullscreenViewer.isOpen || !this.chordSheet) {
       return;
     }
 
-    const outlet = this.chordSheetViewer.element('outlet');
-    const mode = this.chordSheetViewer.getSelectedMode();
-    const content = mode === 'text' ? outlet.innerText : outlet.innerHTML;
-    this.fullscreenViewer.update({ content, mode });
-  }
-
-  updateFullscreenButton() {
-    if (!this.chordSheetViewer) {
-      return;
-    }
-
-    const button = this.chordSheetViewer.element('fullscreen');
-    if (button) {
-      button.disabled = !this.chordSheet;
+    try {
+      const { html } = await formatChordSheetMarkup(this.chordSheet, this.config);
+      this.fullscreenViewer.update({ content: html, mode: 'html' });
+    } catch {
+      // Keep the current view open if a keystroke briefly breaks parsing.
     }
   }
 
   render() {
-    if (!this.chordSheetViewer) {
+    if (!this.toolbar) {
       return;
     }
 
@@ -357,19 +462,17 @@ class SongBrowserApp {
   }, 100);
 
   async renderChordSheet() {
+    this.updateViewState();
+
     if (!this.chordSheet) {
-      this.chordSheetViewer.element('outlet').innerHTML = '<p class="SongBrowserApp__placeholder">Select a song from the library.</p>';
-      this.updateFullscreenButton();
       return;
     }
 
     try {
-      const chordsheetjs = await loadChordsheetjs();
-      const parser = new chordsheetjs.ChordProParser();
-      this.song = parser.parse(this.chordSheet);
-      this.chordSheetViewer.render(this.song, this.config);
+      const { song } = await formatChordSheetMarkup(this.chordSheet, this.config);
+      this.song = song;
       this.chordSheetEditor.resetError();
-      this.syncFullscreenPreview();
+      await this.syncViewPreview();
     } catch (error) {
       const message = error.message || String(error);
       const location = error.location;
@@ -378,14 +481,11 @@ class SongBrowserApp {
         this.chordSheetEditor.showError(message, location);
       }
     }
-
-    this.updateFullscreenButton();
   }
 
   updateQueryParams() {
     setSongBrowserQueryParams({
       chordSheet: this.chordSheet,
-      displayMode: this.displayMode,
       driveFileId: this.driveFileId,
     });
   }

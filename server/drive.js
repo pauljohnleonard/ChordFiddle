@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const { OAuth2Client } = require('google-auth-library');
 const path = require('path');
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -30,6 +31,12 @@ function getDrive() {
     driveClient = google.drive({ version: 'v3', auth: getAuth() });
   }
   return driveClient;
+}
+
+function getDriveForAccessToken(accessToken) {
+  const client = new OAuth2Client();
+  client.setCredentials({ access_token: accessToken });
+  return google.drive({ version: 'v3', auth: client });
 }
 
 function getRootFolderId() {
@@ -145,14 +152,18 @@ async function listAllFolderContents(folderId) {
   return { folders, files, skipped };
 }
 
-async function getFileMetadata(fileId) {
+async function getRawFileRecord(fileId) {
   const drive = getDrive();
   const { data } = await drive.files.get({
     fileId,
     fields: 'id,name,mimeType,modifiedTime,shortcutDetails,parents',
     supportsAllDrives: true,
   });
-  return resolveFile(data);
+  return data;
+}
+
+async function getFileMetadata(fileId) {
+  return resolveFile(await getRawFileRecord(fileId));
 }
 
 async function getStartChangesToken() {
@@ -312,6 +323,82 @@ async function uploadSongContent(file, content) {
   });
 }
 
+function normalizeRenameName(currentName, requestedName, allowedExtensions) {
+  const trimmed = requestedName.trim();
+  if (!trimmed) {
+    const error = new Error('Name is required');
+    error.status = 400;
+    throw error;
+  }
+
+  if (hasAllowedExtension(trimmed, allowedExtensions)) {
+    return trimmed;
+  }
+
+  const lower = currentName.toLowerCase();
+  const ext = allowedExtensions.find((candidate) => lower.endsWith(candidate));
+  return ext ? `${trimmed}${ext}` : trimmed;
+}
+
+async function renameSongFile(fileId, newName, { accessToken } = {}) {
+  const raw = await getRawFileRecord(fileId);
+  const allowedExtensions = getAllowedExtensions();
+  const name = normalizeRenameName(raw.name, newName, allowedExtensions);
+  const drive = accessToken ? getDriveForAccessToken(accessToken) : getDrive();
+  const { data } = await drive.files.update({
+    fileId: raw.id,
+    requestBody: { name },
+    fields: 'id,name,mimeType,modifiedTime,parents,shortcutDetails',
+    supportsAllDrives: true,
+  });
+
+  return data;
+}
+
+async function trashSongFile(fileId, { accessToken } = {}) {
+  const raw = await getRawFileRecord(fileId);
+  const drive = accessToken ? getDriveForAccessToken(accessToken) : getDrive();
+  await drive.files.update({
+    fileId: raw.id,
+    requestBody: { trashed: true },
+    supportsAllDrives: true,
+  });
+}
+
+async function createSongFile({
+  name, content, parentFolderId = getRootFolderId(), accessToken,
+}) {
+  if (!parentFolderId) {
+    const error = new Error('DRIVE_FOLDER_ID is not configured on the server');
+    error.status = 500;
+    throw error;
+  }
+
+  if (!accessToken) {
+    const error = new Error('Sign in with Google to create new songs');
+    error.status = 401;
+    throw error;
+  }
+
+  // New files must be created as the signed-in user — service accounts have no Drive quota.
+  const drive = getDriveForAccessToken(accessToken);
+  const { data } = await drive.files.create({
+    requestBody: {
+      name,
+      parents: [parentFolderId],
+      mimeType: TEXT_PLAIN_MIME,
+    },
+    media: {
+      mimeType: TEXT_PLAIN_MIME,
+      body: content,
+    },
+    fields: 'id,name,mimeType,modifiedTime,parents',
+    supportsAllDrives: true,
+  });
+
+  return resolveFile(data);
+}
+
 async function userCanEditFolder(email, folderId = getRootFolderId()) {
   const drive = getDrive();
   const normalizedEmail = email.toLowerCase();
@@ -343,10 +430,14 @@ module.exports = {
   getAllowedExtensions,
   isSongFile,
   resolveFile,
+  getRawFileRecord,
   listAllFolderContents,
   getFileMetadata,
   downloadSongContent,
   uploadSongContent,
+  renameSongFile,
+  trashSongFile,
+  createSongFile,
   userCanEditFolder,
   getStartChangesToken,
   listChanges,

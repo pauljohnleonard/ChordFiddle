@@ -1,5 +1,26 @@
 @use "variables"
 
+.EditorToolbar
+  display: flex
+  flex-wrap: wrap
+  gap: variables.$spacing-m variables.$spacing-l
+  padding: variables.$toolbar-spacing 0 0 0
+
+  &__group
+    display: flex
+    flex-direction: column
+    gap: 0.25rem
+
+  &__label
+    color: variables.$theme-grey
+    font-size: 0.65rem
+    font-weight: 600
+    letter-spacing: 0.04em
+    text-transform: uppercase
+
+  .Toolbar
+    padding-top: 0
+
 .Toolbar
   display: flex
   flex-wrap: wrap
@@ -10,6 +31,7 @@
   button, .button
     height: 31px
 
-  &__save--inactive
+  &__save--inactive,
+  &__view--inactive
     background-color: variables.$theme-grey
     opacity: 0.5

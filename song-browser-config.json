@@ -6,17 +6,15 @@
     "allowedExtensions": [".cho", ".chopro", ".pro", ".crd", ".chordpro", ".txt", ".md"]
   },
   "toolbar": {
+    "newSong": "New",
     "transposeDown": "Transpose down",
     "transposeUp": "Transpose up",
     "switchToSharp": "Use ♯",
     "switchToFlat": "Use ♭",
+    "viewSong": "View",
+    "importUrl": "Import URL",
     "saveSong": "Save to Drive"
   },
-  "displayModes": {
-    "html": "Markup",
-    "text": "Plain"
-  },
-  "defaultDisplayMode": "html",
   "formatterConfig": {
     "attributes": {
       "decapo": {

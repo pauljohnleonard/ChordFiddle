@@ -1,0 +1,48 @@
+@use "variables"
+
+.ImportDialog
+  background: variables.$theme-white
+  border: none
+  border-radius: 4px
+  color: variables.$theme-background
+  max-width: 28rem
+  padding: 0
+  width: calc(100% - 2rem)
+
+  &::backdrop
+    background: rgba(0, 0, 0, 0.55)
+
+  &__form
+    display: flex
+    flex-direction: column
+    gap: variables.$spacing-m
+    padding: variables.$spacing-l
+
+  &__title
+    font-size: 1.1rem
+    margin: 0
+
+  &__hint
+    color: #666
+    font-size: 0.85rem
+    margin: 0
+
+  &__url
+    border: 1px solid #ccc
+    border-radius: 2px
+    font: inherit
+    padding: variables.$spacing-s variables.$spacing-m
+    width: 100%
+
+  &__error
+    color: #8a1f1f
+    font-size: 0.85rem
+    margin: 0
+
+    &[hidden]
+      display: none
+
+  &__actions
+    display: flex
+    gap: variables.$spacing-s
+    justify-content: flex-end

@@ -53,6 +53,15 @@ function initSchema(database) {
       value TEXT NOT NULL
     );
   `);
+
+  ensureColumn(database, 'songs', 'subtitle', 'TEXT');
+}
+
+function ensureColumn(database, table, column, definition) {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((entry) => entry.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 function getMeta(key) {
@@ -112,10 +121,10 @@ function upsertSong(record) {
   const upsert = database.prepare(`
     INSERT INTO songs (
       file_id, name, parent_folder_id, folder_path, folder_id_path, modified_time,
-      title, artist, song_key, capo, tempo, parse_error, updated_at
+      title, subtitle, artist, song_key, capo, tempo, parse_error, updated_at
     ) VALUES (
       @fileId, @name, @parentFolderId, @folderPath, @folderIdPath, @modifiedTime,
-      @title, @artist, @songKey, @capo, @tempo, @parseError, @updatedAt
+      @title, @subtitle, @artist, @songKey, @capo, @tempo, @parseError, @updatedAt
     )
     ON CONFLICT(file_id) DO UPDATE SET
       name = excluded.name,
@@ -124,6 +133,7 @@ function upsertSong(record) {
       folder_id_path = excluded.folder_id_path,
       modified_time = excluded.modified_time,
       title = excluded.title,
+      subtitle = excluded.subtitle,
       artist = excluded.artist,
       song_key = excluded.song_key,
       capo = excluded.capo,
@@ -144,6 +154,7 @@ function upsertSong(record) {
       folderIdPath: sqlString(song.folderIdPath) || '',
       modifiedTime: sqlString(song.modifiedTime),
       title: sqlString(song.title),
+      subtitle: sqlString(song.subtitle),
       artist: sqlString(song.artist),
       songKey: sqlString(song.key),
       capo: sqlString(song.capo),
@@ -163,6 +174,35 @@ function upsertSong(record) {
 
 function removeSong(fileId) {
   getDb().prepare('DELETE FROM songs WHERE file_id = ?').run(fileId);
+  getDb().prepare('DELETE FROM song_tags WHERE file_id = ?').run(fileId);
+}
+
+function getIndexFieldsByFileIds(fileIds) {
+  if (!fileIds || fileIds.length === 0) {
+    return {};
+  }
+
+  const placeholders = fileIds.map((_, index) => `@id${index}`).join(', ');
+  const params = Object.fromEntries(fileIds.map((id, index) => [`id${index}`, id]));
+  const rows = getDb().prepare(`
+    SELECT file_id AS fileId, title, subtitle, artist
+    FROM songs
+    WHERE file_id IN (${placeholders})
+  `).all(params);
+
+  return Object.fromEntries(rows.map((row) => [row.fileId, {
+    title: row.title,
+    subtitle: row.subtitle,
+    artist: row.artist,
+  }]));
+}
+
+function updateSongName(fileId, name) {
+  getDb().prepare(`
+    UPDATE songs
+    SET name = ?, updated_at = ?
+    WHERE file_id = ?
+  `).run(sqlString(name), Date.now(), fileId);
 }
 
 function getSongByFileId(fileId) {
@@ -271,6 +311,7 @@ function searchSongs({
       s.parent_folder_id AS parentFolderId,
       s.folder_path AS folderPath,
       s.title,
+      s.subtitle,
       s.artist,
       s.song_key AS key,
       s.capo,
@@ -353,6 +394,8 @@ function clearSyncProgress() {
 module.exports = {
   upsertSong,
   removeSong,
+  updateSongName,
+  getIndexFieldsByFileIds,
   getSongByFileId,
   clearIndex,
   getSongCount,

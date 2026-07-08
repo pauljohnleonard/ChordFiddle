@@ -17,11 +17,14 @@ if [[ ! -f service-account.json ]]; then
   exit 1
 fi
 
+echo "Building frontend locally ..."
+yarn build
+
 echo "Syncing to ${HOST}:~/${REMOTE_DIR} ..."
 rsync -avz --delete \
   --exclude node_modules \
   --exclude .git \
-  --exclude dist \
+  --exclude .yarn \
   --exclude .env \
   --exclude service-account.json \
   --exclude 'client_secret*' \
@@ -33,27 +36,38 @@ rsync -avz --delete \
 echo "Copying secrets ..."
 scp .env service-account.json "${HOST}:~/${REMOTE_DIR}/"
 
-echo "Building and restarting on ${HOST} ..."
+echo "Installing deps and restarting on ${HOST} ..."
 ssh "${HOST}" bash <<REMOTE
 set -euo pipefail
 source ~/.nvm/nvm.sh
 cd ~/${REMOTE_DIR}
 grep -q '^PORT=' .env || echo 'PORT=9000' >> .env
 corepack enable
-yarn install
-yarn build
 
-PLIST=~/Library/LaunchAgents/com.chordfiddle.app.plist
-if [[ -f scripts/com.chordfiddle.plist ]]; then
-  mkdir -p ~/Library/LaunchAgents
-  cp scripts/com.chordfiddle.plist "\$PLIST"
-  launchctl bootout "gui/\$(id -u)" "\$PLIST" 2>/dev/null || true
-  launchctl bootstrap "gui/\$(id -u)" "\$PLIST"
-  launchctl enable "gui/\$(id -u)/com.chordfiddle.app"
-  launchctl kickstart -k "gui/\$(id -u)/com.chordfiddle.app"
+if [[ -d node_modules ]] && [[ -f .yarn/install-state.gz ]] && [[ ! yarn.lock -nt .yarn/install-state.gz ]]; then
+  echo "yarn.lock unchanged — skipping yarn install"
 else
-  pkill -f "node server/index.js" 2>/dev/null || true
-  nohup yarn start:prod > /tmp/chordfiddle.log 2>&1 &
+  echo "yarn.lock changed or first install — running yarn install"
+  yarn install
+fi
+
+if command -v pm2 >/dev/null 2>&1; then
+  echo "Restarting via pm2 ..."
+  pm2 startOrReload ecosystem.config.cjs --update-env
+  pm2 save
+else
+  PLIST=~/Library/LaunchAgents/com.chordfiddle.app.plist
+  if [[ -f scripts/com.chordfiddle.plist ]]; then
+    mkdir -p ~/Library/LaunchAgents
+    cp scripts/com.chordfiddle.plist "\$PLIST"
+    launchctl bootout "gui/\$(id -u)" "\$PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/\$(id -u)" "\$PLIST"
+    launchctl enable "gui/\$(id -u)/com.chordfiddle.app"
+    launchctl kickstart -k "gui/\$(id -u)/com.chordfiddle.app"
+  else
+    pkill -f "node server/index.js" 2>/dev/null || true
+    nohup yarn start:prod > /tmp/chordfiddle.log 2>&1 &
+  fi
 fi
 
 sleep 2

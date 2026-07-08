@@ -5,7 +5,9 @@
   color: variables.$theme-background
   display: flex
   flex-direction: column
+  height: 100dvh
   inset: 0
+  min-height: -webkit-fill-available
   position: fixed
   z-index: 2000
 
@@ -19,26 +21,42 @@
   &[hidden]
     display: none !important
 
-  &__close
-    background: rgba(variables.$theme-background, 0.75)
+  &__close,
+  &__columns
+    background: none
     border: none
-    border-radius: 50%
-    color: variables.$theme-foreground
+    color: variables.$theme-background
     cursor: pointer
-    font-size: 1.5rem
-    height: 2.25rem
     line-height: 1
-    opacity: 0.45
-    padding: 0
+    opacity: 0.35
     position: absolute
-    right: variables.$spacing-m
-    top: variables.$spacing-m
-    width: 2.25rem
-    z-index: 1
+    text-shadow: 0 0 4px variables.$theme-foreground, 0 0 8px variables.$theme-foreground
+    top: calc(env(safe-area-inset-top, 0px) + 2.25rem)
+    z-index: 3
 
     &:hover,
     &:focus
-      opacity: 1
+      opacity: 0.9
+
+    &[hidden]
+      display: none
+
+  &__close
+    border-radius: 50%
+    font-size: 1.5rem
+    height: 2rem
+    padding: 0
+    right: calc(env(safe-area-inset-right, 0px) + variables.$spacing-s)
+    width: 2rem
+
+  &__columns
+    font-size: 0.75rem
+    left: calc(env(safe-area-inset-left, 0px) + variables.$spacing-s)
+    letter-spacing: 0.02em
+    padding: variables.$spacing-s
+
+    &[aria-pressed="true"]
+      opacity: 0.65
 
   &__outlet
     flex: 1 1 auto
@@ -48,7 +66,11 @@
     -webkit-overflow-scrolling: touch
     overflow: auto
     overscroll-behavior: contain
-    padding: variables.$spacing-l
+    padding: variables.$spacing-m
+    padding-bottom: calc(variables.$spacing-m + env(safe-area-inset-bottom, 0px))
+    padding-left: calc(variables.$spacing-m + env(safe-area-inset-left, 0px))
+    padding-right: calc(variables.$spacing-m + env(safe-area-inset-right, 0px))
+    padding-top: calc(env(safe-area-inset-top, 0px) + 3.75rem)
     width: 100%
 
     .FullscreenViewer:fullscreen &,
@@ -56,13 +78,32 @@
       max-width: 56rem
       padding: variables.$spacing-m variables.$spacing-l
 
+    &[data-columns="2"]
+      max-width: none
+      width: 100%
+
     &[data-mode="text"]
       font-family: variables.$font-monospace
       font-size: 14px
       white-space: pre
 
     &[data-mode="html"]
-      h2
+      h1.title
+        display: inline
+        font-size: 1.25em
+        margin: 0 0.35em 0.5em 0
+
+      h2.subtitle
+        display: inline
+        font-size: 0.95em
+        font-weight: 400
+        margin: 0 0 0.75em 0
+        opacity: 0.85
+
+        &::before
+          content: '— '
+
+      h2:not(.subtitle)
         font-size: 1.25em
 
       .chord
@@ -81,11 +122,39 @@
         display: flex
         line-height: 150%
 
+    &[data-mode="html"][data-columns="2"]
+      .chord-sheet
+        box-sizing: border-box
+        column-count: 2
+        column-fill: auto
+        column-gap: variables.$spacing-l
+        // One viewport-tall column pair; overflow adds more pairs below (scroll outlet).
+        height: var(--fullscreen-column-height, calc(100dvh - 8rem))
+
+      .paragraph
+        break-inside: avoid
+        -webkit-column-break-inside: avoid
+        page-break-inside: avoid
+
+      // Flex rows break CSS columns in WebKit/Blink — use block flow in 2-col mode.
+      .row
+        display: block
+
+      .column
+        display: inline-block
+        vertical-align: top
+
 body.FullscreenViewer--bodyLock
-  height: 100%
+  height: 100dvh
+  min-height: -webkit-fill-available
   overflow: hidden
   position: fixed
   width: 100%
+
+html.FullscreenViewer--active
+  height: 100dvh
+  min-height: -webkit-fill-available
+  overflow: hidden
 
 .ChordSheetViewer__toolbar
   align-items: center

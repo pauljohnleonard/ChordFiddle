@@ -17,11 +17,13 @@ The song browser uses a small Node server so Drive credentials stay off the clie
 2. **Share** → add the **service account email** as **Editor**
 3. Keep **Anyone with the link → Viewer** if you want public browsing via the server
 
-### 3. OAuth client (sign-in only)
+### 3. OAuth client (sign-in + create new songs)
 
-Same OAuth client as before, but scopes are only **email / profile** — no Drive scope in the browser.
+The browser requests **email / profile** plus **`drive.file`** so new songs can be created in your library folder under your Google account (service accounts cannot create files — they have no storage quota).
 
-**Authorized JavaScript origins:** `http://localhost:9000`
+Browsing and editing existing songs still use the service account on the server.
+
+**Authorized JavaScript origins:** `http://localhost:9000` (and your production URL)
 
 ### 4. `.env`
 
@@ -49,10 +51,11 @@ yarn start
 
 ## Who can save?
 
-1. User signs in with Google (email only — no scary Drive prompt)
+1. User signs in with Google (email + limited Drive access for creating new files)
 2. Server checks Drive folder permissions for that email
 3. If they are **Editor** or **Owner** on the folder (via Drive **Add people**), save is allowed
-4. Server writes the file using the service account
+4. **New songs** are created with the user's Google account (uses their Drive quota)
+5. **Updates** to existing songs use the service account
 
 ## API
 
@@ -72,7 +75,8 @@ yarn start
 
 On startup the server builds a SQLite index under `server/data/` by parsing ChordPro metadata from every song in `DRIVE_FOLDER_ID`. Tags are read from:
 
-- `{meta: tags slow, waltz}` (CheeseJam convention)
+- `{tag: Jazz}` / `{tag: slow}` (Songbook Pro — one tag per line, repeatable)
+- `{meta: tags slow, waltz}` (ChordPro meta)
 - `{keywords: ...}` / `{topic: ...}` (OnSong)
 - `{x_sbp_tags: ...}` (SongbookPro)
 
@@ -86,7 +90,7 @@ Passwordless SSH to the host (e.g. `chordfiddle` in `~/.ssh/config`), then from 
 yarn deploy
 ```
 
-This rsyncs the project to `~/ChordFiddle` on the remote host, copies `.env` and `service-account.json`, runs `yarn build`, and installs a macOS LaunchAgent so the app starts on login.
+This builds the frontend locally, rsyncs the project (including `dist/`) to `~/ChordFiddle` on the remote host, copies `.env` and `service-account.json`, runs `yarn install` on the iMac only when `yarn.lock` changes, and installs a macOS LaunchAgent so the app starts on login.
 
 Production serves the built UI and `/api` on one port (default **9000** — set `PORT` in `.env`).
 

@@ -8,7 +8,7 @@
     "test": "yarn lint",
     "lint": "node_modules/.bin/eslint --ext .js .",
     "lint:fix": "node_modules/.bin/eslint --fix --ext .js .",
-    "build": "webpack --env production",
+    "build": "webpack --env production && cp manifest.json dist/",
     "prepublishOnly": "yarn install && yarn test && yarn build",
     "start": "webpack serve --open",
     "start:api": "node server/index.js",

@@ -19,15 +19,39 @@ See [scripts/apache/README.md](scripts/apache/README.md) for the full vhost layo
 yarn deploy
 ```
 
-- Syncs to `~/ChordFiddle` on the iMac
+- Builds the frontend **locally**, then rsyncs source + `dist/` to `~/ChordFiddle` on the iMac
 - Copies `.env` and `service-account.json`
-- Runs on port **9000** via LaunchAgent
+- Runs `yarn install` on the iMac **only when `yarn.lock` changed** (saves ~35s on most deploys)
+- Runs on port **9000** via **pm2** (preferred) or LaunchAgent fallback
 - LAN: http://192.168.1.22:9000
 
 ```bash
 tail -f /tmp/chordfiddle.log
 launchctl kickstart -k gui/$(id -u)/com.chordfiddle.app
 ```
+
+### PM2 (recommended)
+
+PM2 will restart the app if it crashes and can be configured to auto-start on boot.
+
+One-time setup on the iMac:
+
+```bash
+# install pm2 globally (Node must already be installed via nvm)
+npm i -g pm2
+
+# start the app using the repo's ecosystem file
+cd ~/ChordFiddle
+pm2 start ecosystem.config.cjs
+
+# generate & install launchd startup (pm2 prints the exact command)
+pm2 startup
+
+# save the current process list so it comes back on reboot
+pm2 save
+```
+
+After that, `yarn deploy` will automatically `pm2 startOrReload ecosystem.config.cjs` if pm2 is installed.
 
 ## Apache — cheese-jam.drpjl.com
 

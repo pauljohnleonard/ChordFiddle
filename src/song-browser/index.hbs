@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CheeseJam">
+  <link rel="manifest" href="/manifest.json">
   <meta name="description" content="Browse and transpose ChordPro songs from Google Drive.">
   <title>{{config.title}}</title>
   <style>
@@ -97,62 +101,57 @@
               </div>
               <div class="SongBrowser__tags" id="songBrowser__tags" hidden></div>
             </div>
-            <div class="SongBrowser__toolbar">
+            <div class="SongBrowser__toolbar SongBrowser__toolbar--nav">
               <button class="SongBrowser__back-button" id="songBrowser__backButton" type="button" disabled>Up</button>
-              <button class="SongBrowser__clear-button" id="songBrowser__clearButton" type="button" hidden>Clear</button>
+              <button class="SongBrowser__clear-button" id="songBrowser__clearButton" type="button" hidden>Clear search</button>
             </div>
           </div>
           <p class="SongBrowser__index-status" id="songBrowser__indexStatus" aria-live="polite"></p>
-          <p class="SongBrowser__status" id="songBrowser__status"></p>
+          <p class="SongBrowser__status" id="songBrowser__status" hidden></p>
           <div class="SongBrowser__list" id="songBrowser__list"></div>
+          <div class="SongBrowser__song-actions">
+            <p class="SongBrowser__song-actions-label" id="songBrowser__selectionLabel">Select a song to rename or delete</p>
+            <div class="SongBrowser__toolbar SongBrowser__toolbar--song">
+              <button class="SongBrowser__file-button" id="songBrowser__renameButton" type="button" disabled>Rename</button>
+              <button class="SongBrowser__file-button" id="songBrowser__matchTitleButton" type="button" disabled>Match title</button>
+              <button class="SongBrowser__file-button SongBrowser__file-button--delete" id="songBrowser__deleteButton" type="button" disabled>Delete</button>
+            </div>
+          </div>
         </section>
         <section class="App__column App__column--editor">
           <div class="App__row App__row--grow App__row--relative">
-            <ul class="Toolbar" id="toolbar">
-              {{#each config.toolbar}}
-                <li>
-                  <button id="toolbar__{{@key}}" type="button">{{this}}</button>
-                </li>
-              {{/each}}
-            </ul>
+            <div class="EditorToolbar" id="toolbar">
+              <div class="EditorToolbar__group">
+                <span class="EditorToolbar__label">Create</span>
+                <ul class="Toolbar">
+                  <li><button id="toolbar__newSong" type="button">New</button></li>
+                  <li><button id="toolbar__importUrl" type="button">Import URL</button></li>
+                </ul>
+              </div>
+              <div class="EditorToolbar__group">
+                <span class="EditorToolbar__label">Song</span>
+                <ul class="Toolbar">
+                  <li><button id="toolbar__viewSong" type="button">View</button></li>
+                  <li><button id="toolbar__saveSong" type="button">Save to Drive</button></li>
+                </ul>
+              </div>
+              <div class="EditorToolbar__group">
+                <span class="EditorToolbar__label">Chords</span>
+                <ul class="Toolbar">
+                  <li><button id="toolbar__transposeDown" type="button">Transpose down</button></li>
+                  <li><button id="toolbar__transposeUp" type="button">Transpose up</button></li>
+                  <li><button id="toolbar__switchToSharp" type="button">Use ♯</button></li>
+                  <li><button id="toolbar__switchToFlat" type="button">Use ♭</button></li>
+                </ul>
+              </div>
+            </div>
             <div class="EditorContainer">
-              <div class="ChordSheetEditor EditorContainer__editor" id="chordSheetEditor" data-mode="text">
+              <div class="ChordSheetEditor EditorContainer__editor" id="chordSheetEditor">
                 <script type="text/template"></script>
               </div>
             </div>
             <div class="EditorContainer__errorMessage" id="chordSheetEditor__errorMessage"></div>
           </div>
-        </section>
-        <section class="App__column App__column--viewer" id="chordSheetViewer">
-          <div class="ChordSheetViewer__toolbar">
-            <ul class="RadioGroup">
-              {{#each config.displayModes}}
-                <li class="RadioGroup__option">
-                  <input
-                    type="radio"
-                    class="RadioGroup__radio"
-                    id="chordSheetViewer__displayMode{{upperCaseFirst @key}}"
-                    name="display_mode"
-                    value="{{@key}}"
-                    {{#if (eq ../config.defaultDisplayMode @key)}}
-                      checked="checked"
-                    {{/if}}
-                  >
-                  <label
-                    class="RadioGroup__label"
-                    for="chordSheetViewer__displayMode{{upperCaseFirst @key}}"
-                  >{{this}}</label>
-                </li>
-              {{/each}}
-            </ul>
-            <button
-              type="button"
-              class="ChordSheetViewer__toolbar__fullscreen"
-              id="chordSheetViewer__fullscreen"
-              disabled
-            >Fullscreen</button>
-          </div>
-          <div class="ChordSheetViewer" id="chordSheetViewer__outlet"></div>
         </section>
       </div>
     </main>
@@ -163,14 +162,42 @@
   </div>
 </div>
 
+<dialog class="ImportDialog" id="importDialog">
+  <form class="ImportDialog__form" id="importDialog__form">
+    <h2 class="ImportDialog__title">Import from URL</h2>
+    <p class="ImportDialog__hint">Paste a link to a web page with chord or tab data.</p>
+    <input
+      type="url"
+      class="ImportDialog__url"
+      id="importDialog__url"
+      placeholder="https://…"
+      autocomplete="off"
+      required
+    >
+    <p class="ImportDialog__error" id="importDialog__error" hidden></p>
+    <div class="ImportDialog__actions">
+      <button type="button" id="importDialog__cancel">Cancel</button>
+      <button type="submit" id="importDialog__import">Import</button>
+    </div>
+  </form>
+</dialog>
+
 <section class="FullscreenViewer" id="fullscreenViewer" hidden>
   <div class="FullscreenViewer__outlet ChordSheetViewer" id="fullscreenViewer__outlet"></div>
   <button
     type="button"
+    class="FullscreenViewer__columns"
+    id="fullscreenViewer__columns"
+    aria-label="Switch to two columns"
+    title="Two columns"
+    hidden
+  >2 col</button>
+  <button
+    type="button"
     class="FullscreenViewer__close"
     id="fullscreenViewer__close"
-    aria-label="Exit fullscreen"
-    title="Exit fullscreen (Esc)"
+    aria-label="Close view"
+    title="Close view (Esc)"
   >×</button>
 </section>
 <script src="{{bundlePath}}"></script>
